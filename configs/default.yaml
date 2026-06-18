@@ -1,0 +1,14 @@
+brain:
+  total_nodes: 2047
+  max_layers: 11
+  tree_type: binary_full
+
+simulation:
+  dt_fast: 0.005    # 5ms for 100-200Hz
+  dt_medium: 0.02   # 20ms for 10-50Hz
+  dt_slow: 0.1      # 100ms for 1-10Hz
+  max_latency_ms: 10
+
+monitoring:
+  enabled: true
+  metrics_port: 9090

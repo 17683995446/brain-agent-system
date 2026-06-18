@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  brain-sim:
+    build: .
+    container_name: brain-agent-system
+    environment:
+      - LOG_LEVEL=INFO
+      - BRAIN_NODES=2047
+    volumes:
+      - ./data:/app/data
+      - ./configs:/app/configs
+    ports:
+      - "9090:9090"  # Metrics
+    command: python -m brain_agent.main --steps 100

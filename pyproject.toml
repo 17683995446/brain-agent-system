@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "brain-agent-system"
+version = "0.1.0"
+description = "Brain simulation agent system with 2047 nodes organized in a full binary tree topology"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "numpy",
+    "pyarrow",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
