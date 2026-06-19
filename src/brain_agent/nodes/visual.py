@@ -56,7 +56,7 @@ class VisualPathwayNode(BrainNode):
         """
         start = time.perf_counter()
         if isinstance(data, Tensor):
-            result = self._process_tensor(data)
+            result: BrainData = self._process_tensor(data)
         elif isinstance(data, StateVector):
             result = self._process_state_vector(data)
         elif isinstance(data, Signal):
@@ -194,7 +194,7 @@ class VisualPathwayNode(BrainNode):
         local_mean = np.mean(data.data)
         contrast_enhanced = data.data - local_mean
         return StateVector(data=contrast_enhanced.astype(np.float32),
-                          dimension=data.dimension)
+                           dimension=data.dimension)
 
     def _process_signal(self, data: Signal) -> Signal:
         """Process scalar signal as luminance input.

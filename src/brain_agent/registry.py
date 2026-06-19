@@ -13,9 +13,11 @@ ALL_NODE_CLASSES: Dict[int, Type[BrainNode]] = {}
 ALL_NODE_CLASSES.update(NODE_CLASS_MAP)
 ALL_NODE_CLASSES.update(GENERATED_NODE_MAP)
 
+
 def get_node_class(node_id: int) -> Optional[Type[BrainNode]]:
     """Get the node class for a given node ID."""
     return ALL_NODE_CLASSES.get(node_id)
+
 
 def create_node(config: NodeConfig) -> BrainNode:
     """Create a node instance from its config, using the registry."""
@@ -23,6 +25,7 @@ def create_node(config: NodeConfig) -> BrainNode:
     if cls is None:
         raise ValueError(f"No node class registered for node_id={config.node_id}")
     return cls(config)
+
 
 def get_registry_stats() -> Dict[str, int]:
     """Get statistics about the node registry."""

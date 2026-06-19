@@ -55,7 +55,7 @@ class ModulationSystemNode(BrainNode):
         """
         start = time.perf_counter()
         if isinstance(data, Tensor):
-            result = self._process_tensor(data)
+            result: BrainData = self._process_tensor(data)
         elif isinstance(data, StateVector):
             result = self._process_state_vector(data)
         elif isinstance(data, Signal):
@@ -86,7 +86,7 @@ class ModulationSystemNode(BrainNode):
         gain = peak * np.exp(-((current - optimal) ** 2) / (2 * width ** 2))
         return np.float32(gain)
 
-    def _update_level(self, salience: float):
+    def _update_level(self, salience: float) -> None:
         """Update neuromodulator release level.
 
         Combines tonic (baseline) and phasic (salience-driven) components:

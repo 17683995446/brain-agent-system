@@ -58,7 +58,7 @@ class ThalamicRelayStationNode(BrainNode):
         """
         start = time.perf_counter()
         if isinstance(data, Tensor):
-            result = self._process_tensor(data)
+            result: BrainData = self._process_tensor(data)
         elif isinstance(data, StateVector):
             result = self._process_state_vector(data)
         elif isinstance(data, Signal):
@@ -71,7 +71,7 @@ class ThalamicRelayStationNode(BrainNode):
         self._update_metrics(time.perf_counter() - start)
         return result
 
-    def _update_mode(self, input_salience: float):
+    def _update_mode(self, input_salience: float) -> None:
         """Update burst/tonic mode based on arousal and input.
 
         In tonic mode (high arousal): faithful relay of signals

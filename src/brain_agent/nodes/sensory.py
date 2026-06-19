@@ -40,7 +40,7 @@ class SensoryPathwayNode(BrainNode):
         self.set_state("modality_gain", np.float32(1.0))
         self.set_state("adaptation_state", np.float32(1.0))
 
-    def _build_gabor_filters(self):
+    def _build_gabor_filters(self) -> None:
         """Build a bank of Gabor-like filters at multiple orientations.
 
         Gabor filters model the receptive fields of V1 simple cells:
@@ -81,7 +81,7 @@ class SensoryPathwayNode(BrainNode):
         """
         start = time.perf_counter()
         if isinstance(data, Tensor):
-            result = self._process_tensor(data)
+            result: BrainData = self._process_tensor(data)
         elif isinstance(data, StateVector):
             result = self._process_state_vector(data)
         elif isinstance(data, Signal):
@@ -213,9 +213,9 @@ class SensoryPathwayNode(BrainNode):
                 )
                 local_sum[:, :, ch] = box_sum[:h, :w]
 
-            return local_sum / np.float32(kernel_size * kernel_size)
+            return local_sum / np.float32(kernel_size * kernel_size)  # type: ignore[no-any-return]
         else:
-            return np.abs(data) + np.float32(1e-6)
+            return np.abs(data) + np.float32(1e-6)  # type: ignore[no-any-return]
 
     def _process_state_vector(self, data: StateVector) -> StateVector:
         """Process state vector through sensory feature extraction.

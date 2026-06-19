@@ -56,7 +56,7 @@ class AuditoryPathwayNode(BrainNode):
         """
         start = time.perf_counter()
         if isinstance(data, Tensor):
-            result = self._process_tensor(data)
+            result: BrainData = self._process_tensor(data)
         elif isinstance(data, StateVector):
             result = self._process_state_vector(data)
         elif isinstance(data, Signal):
@@ -161,18 +161,18 @@ class AuditoryPathwayNode(BrainNode):
         itd_map = np.zeros((h, w), dtype=np.float32)
 
         for row in range(h):
-            l = left[row, :]
-            r = right[row, :]
+            left_row = left[row, :]
+            right_row = right[row, :]
 
             # Normalized cross-correlation
-            l_norm = l - np.mean(l)
-            r_norm = r - np.mean(r)
+            left_row_norm = left_row - np.mean(left_row)
+            right_row_norm = right_row - np.mean(right_row)
 
-            l_std = np.std(l_norm)
-            r_std = np.std(r_norm)
+            left_row_std = np.std(left_row_norm)
+            right_row_std = np.std(right_row_norm)
 
-            if l_std > 1e-6 and r_std > 1e-6:
-                correlation = np.correlate(l_norm, r_norm, mode='same')
+            if left_row_std > 1e-6 and right_row_std > 1e-6:
+                correlation = np.correlate(left_row_norm, right_row_norm, mode='same')
                 max_corr = np.max(np.abs(correlation))
                 if max_corr > 1e-6:
                     # Normalize to [0, 1]

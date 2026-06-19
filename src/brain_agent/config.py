@@ -95,3 +95,48 @@ class BrainConfig:
     def to_dict(self) -> Dict[str, Any]:
         """Return configuration as dictionary."""
         return self._config.copy()
+
+    def validate(self) -> list:
+        """Validate configuration values.
+
+        Returns:
+            List of error messages (empty if valid).
+        """
+        errors = []
+
+        # Validate brain section
+        total_nodes = self.get_int("brain.total_nodes", 2047)
+        if total_nodes <= 0:
+            errors.append(f"brain.total_nodes must be positive, got {total_nodes}")
+
+        max_layers = self.get_int("brain.max_layers", 11)
+        if max_layers <= 0 or max_layers > 20:
+            errors.append(f"brain.max_layers must be 1-20, got {max_layers}")
+
+        # Validate simulation section
+        dt_fast = self.get_float("simulation.dt_fast", 0.005)
+        if dt_fast <= 0 or dt_fast > 1.0:
+            errors.append(f"simulation.dt_fast must be (0, 1.0], got {dt_fast}")
+
+        dt_medium = self.get_float("simulation.dt_medium", 0.02)
+        if dt_medium <= 0 or dt_medium < dt_fast:
+            errors.append(
+                f"simulation.dt_medium must be >= dt_fast ({dt_fast}), got {dt_medium}"
+            )
+
+        dt_slow = self.get_float("simulation.dt_slow", 0.1)
+        if dt_slow <= 0 or dt_slow < dt_medium:
+            errors.append(
+                f"simulation.dt_slow must be >= dt_medium ({dt_medium}), got {dt_slow}"
+            )
+
+        max_latency = self.get_float("simulation.max_latency_ms", 10.0)
+        if max_latency <= 0:
+            errors.append(f"simulation.max_latency_ms must be positive, got {max_latency}")
+
+        # Validate monitoring section
+        metrics_port = self.get_int("monitoring.metrics_port", 9090)
+        if metrics_port < 1 or metrics_port > 65535:
+            errors.append(f"monitoring.metrics_port must be 1-65535, got {metrics_port}")
+
+        return errors

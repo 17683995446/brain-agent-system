@@ -53,7 +53,7 @@ class CognitiveSystemNode(BrainNode):
         """
         start = time.perf_counter()
         if isinstance(data, Tensor):
-            result = self._process_tensor(data)
+            result: BrainData = self._process_tensor(data)
         elif isinstance(data, StateVector):
             result = self._process_state_vector(data)
         elif isinstance(data, Signal):
@@ -143,7 +143,7 @@ class CognitiveSystemNode(BrainNode):
         load_factor = 1.0 / (1.0 + cognitive_load)
         return Signal(value=float(data.value * load_factor), timestamp=data.timestamp)
 
-    def _update_working_memory(self, input_data: np.ndarray):
+    def _update_working_memory(self, input_data: np.ndarray) -> None:
         """Update working memory buffer with new input.
 
         Working memory follows an exponential decay model:
@@ -158,7 +158,7 @@ class CognitiveSystemNode(BrainNode):
         # Encoding: compress input to 128 dimensions
         encoding = np.zeros(128, dtype=np.float32)
         if len(input_data) >= 128:
-            encoding = input_data[:128].astype(np.float32)
+            encoding = input_data[:128].astype(np.float32)  # type: ignore[assignment]
         else:
             encoding[:len(input_data)] = input_data.astype(np.float32)
 

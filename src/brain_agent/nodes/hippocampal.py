@@ -78,7 +78,7 @@ class HippocampalCircuitNode(BrainNode):
         """
         start = time.perf_counter()
         if isinstance(data, Tensor):
-            result = self._process_tensor(data)
+            result: BrainData = self._process_tensor(data)
         elif isinstance(data, StateVector):
             result = self._process_state_vector(data)
         elif isinstance(data, Signal):
@@ -182,8 +182,8 @@ class HippocampalCircuitNode(BrainNode):
         # Pattern completion: if good match, blend with stored pattern
         if best_match >= 0 and best_similarity > 0.7:
             completed = ca3_patterns[best_match]
-            ca3_output = ca3_activation * (1.0 - best_similarity) + \
-                         completed * best_similarity
+            ca3_output = (ca3_activation * (1.0 - best_similarity) +
+                          completed * best_similarity)
         else:
             ca3_output = ca3_activation
 
@@ -219,7 +219,7 @@ class HippocampalCircuitNode(BrainNode):
         novelty_gain = np.float32(1.0 + 0.5 * np.tanh(novelty))
         ca1_output = ca1_output * novelty_gain
 
-        return ca1_output
+        return ca1_output  # type: ignore[no-any-return]
 
     def _process_signal(self, data: Signal) -> Signal:
         """Process scalar signal through hippocampal novelty detection.

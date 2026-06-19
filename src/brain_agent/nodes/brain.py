@@ -57,7 +57,7 @@ class BrainSystemNode(BrainNode):
         self.set_state("arousal", arousal)
 
         if isinstance(data, Tensor):
-            result = self._process_tensor(data, arousal)
+            result: BrainData = self._process_tensor(data, arousal)
         elif isinstance(data, StateVector):
             result = self._process_state_vector(data, arousal)
         elif isinstance(data, Signal):
@@ -135,8 +135,8 @@ class BrainSystemNode(BrainNode):
         attention_weight = np.float32(1.0 / (1.0 + np.exp(-similarity)))
 
         # Integrate: blend input with context based on attention
-        blended = data.data * (1.0 - attention_weight * 0.3) + \
-                  context[:data.dimension] * (attention_weight * 0.3)
+        blended = (data.data * (1.0 - attention_weight * 0.3) +
+                   context[:data.dimension] * (attention_weight * 0.3))
         modulated = blended * arousal
 
         return StateVector(data=modulated.astype(np.float32), dimension=data.dimension)

@@ -59,7 +59,7 @@ class MemorySystemNode(BrainNode):
         """
         start = time.perf_counter()
         if isinstance(data, Tensor):
-            result = self._process_tensor(data)
+            result: BrainData = self._process_tensor(data)
         elif isinstance(data, StateVector):
             result = self._process_state_vector(data)
         elif isinstance(data, Signal):
@@ -110,7 +110,7 @@ class MemorySystemNode(BrainNode):
         result = self._memory_process(input_vec)
 
         return StateVector(data=result[:data.dimension].astype(np.float32),
-                          dimension=data.dimension)
+                           dimension=data.dimension)
 
     def _memory_process(self, input_vec: np.ndarray) -> np.ndarray:
         """Core memory processing: encoding, retrieval, consolidation.
@@ -149,8 +149,8 @@ class MemorySystemNode(BrainNode):
             if best_similarity > retrieval_threshold:
                 # Attractor dynamics: move toward stored pattern
                 completion_strength = np.float32(best_similarity)
-                output = input_vec * (1.0 - completion_strength) + \
-                         retrieved * completion_strength
+                output = (input_vec * (1.0 - completion_strength) +
+                          retrieved * completion_strength)
             else:
                 output = input_vec.copy()
         else:

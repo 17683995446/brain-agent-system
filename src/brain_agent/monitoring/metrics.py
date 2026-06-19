@@ -41,7 +41,7 @@ class MetricsCollector:
         self._collection_interval = 1.0  # seconds
         self._running = False
 
-    def collect_node_metrics(self):
+    def collect_node_metrics(self) -> None:
         """Collect metrics from all nodes in the tree."""
         if not self._tree:
             return
@@ -67,7 +67,7 @@ class MetricsCollector:
                 {"node_id": str(m["node_id"]), "layer": str(m["layer"])}
             )
 
-    def collect_step_result(self, result: StepResult):
+    def collect_step_result(self, result: StepResult) -> None:
         """Collect metrics from a scheduler step result."""
         timestamp = time.time()
         self._add_metric("brain_system_step_latency_ms", result.total_latency_ms, timestamp)
@@ -75,7 +75,7 @@ class MetricsCollector:
         if result.errors:
             self._add_metric("brain_system_errors_total", len(result.errors), timestamp)
 
-    def _add_metric(self, name: str, value: float, timestamp: float, labels: Optional[Dict[str, str]] = None):
+    def _add_metric(self, name: str, value: float, timestamp: float, labels: Optional[Dict[str, str]] = None) -> None:
         with self._lock:
             self._metrics[name].append(MetricPoint(
                 name=name, value=value, timestamp=timestamp, labels=labels or {}
@@ -111,6 +111,6 @@ class MetricsCollector:
                     lines.append(f"{name}{labels_str} {latest.value}")
         return "\n".join(lines)
 
-    def clear(self):
+    def clear(self) -> None:
         with self._lock:
             self._metrics.clear()

@@ -4,12 +4,21 @@ services:
   brain-sim:
     build: .
     container_name: brain-agent-system
+    user: brainuser
     environment:
       - LOG_LEVEL=INFO
       - BRAIN_NODES=2047
+      - BRAIN_SIM_STEPS=0
     volumes:
-      - ./data:/app/data
-      - ./configs:/app/configs
+      - ./data:/app/data:ro
+      - ./configs:/app/configs:ro
     ports:
-      - "9090:9090"  # Metrics
-    command: python -m brain_agent.main --steps 100
+      - "9090:9090"
+    command: python -m brain_agent.main --steps 0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

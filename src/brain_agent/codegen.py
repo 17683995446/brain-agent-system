@@ -137,7 +137,7 @@ class NodeCodeGenerator:
         self.output_dir = output_dir
         self._node_data: List[Dict] = []
 
-    def load(self):
+    def load(self) -> None:
         """Load node definitions by parsing all DESIGN.md files."""
         from .tree import DesignDocParser
 
@@ -156,7 +156,7 @@ class NodeCodeGenerator:
 
         logger.info(f"Loaded {len(self._node_data)} node definitions from DESIGN.md files")
 
-    def load_from_json(self, json_path: str):
+    def load_from_json(self, json_path: str) -> None:
         """Load node definitions from a JSON file.
 
         The JSON file should have the format:

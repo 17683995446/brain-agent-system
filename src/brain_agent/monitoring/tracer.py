@@ -21,7 +21,7 @@ class TraceSpan:
     data_type: str = ""
     error: Optional[str] = None
 
-    def finish(self):
+    def finish(self) -> None:
         self.end_time = time.perf_counter()
         self.duration_ms = (self.end_time - self.start_time) * 1000
 
@@ -29,7 +29,7 @@ class TraceSpan:
 class Tracer:
     """Traces data flow through the brain node tree."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._traces: List[Dict[str, Any]] = []
         self._span_stack: List[TraceSpan] = []
         self._enabled = True
@@ -55,7 +55,7 @@ class Tracer:
         self._span_stack.append(span)
         return span
 
-    def finish_span(self, span: TraceSpan, error: Optional[str] = None):
+    def finish_span(self, span: TraceSpan, error: Optional[str] = None) -> None:
         if not self._enabled:
             return
         span.finish()
@@ -81,13 +81,13 @@ class Tracer:
         self._format_span(root, lines, indent=2)
         return "\n".join(lines)
 
-    def _format_span(self, span: TraceSpan, lines: List[str], indent: int):
+    def _format_span(self, span: TraceSpan, lines: List[str], indent: int) -> None:
         prefix = " " * indent
         err = f" ERROR: {span.error}" if span.error else ""
         lines.append(f"{prefix}└─ {span.node_name} (L{span.layer:02d}) {span.duration_ms:.2f}ms{err}")
         for child in span.children:
             self._format_span(child, lines, indent + 2)
 
-    def clear(self):
+    def clear(self) -> None:
         self._traces.clear()
         self._span_stack.clear()

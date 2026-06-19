@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, List, Dict, Any, Tuple
+from collections import deque
 import time
 import logging
 import ast
@@ -16,6 +17,9 @@ import ast
 from .types import BrainData, Tensor, StateVector, Signal
 
 logger = logging.getLogger(__name__)
+
+# Maximum input queue depth. When full, oldest items are dropped.
+DEFAULT_MAX_QUEUE_SIZE = 1000
 
 
 class RegionType(Enum):
@@ -104,11 +108,12 @@ class BrainNode(ABC):
         self._state: Dict[str, Any] = {}
         self._children: Dict[int, BrainNode] = {}
         self._parent: Optional[BrainNode] = None
-        self._input_queue: List[BrainData] = []
+        self._input_queue: deque = deque(maxlen=DEFAULT_MAX_QUEUE_SIZE)
         self._output_history: List[BrainData] = []
         self._process_count: int = 0
         self._last_process_time: float = 0.0
         self._total_process_time: float = 0.0
+        self._last_process_error: Optional[str] = None
         self._input_ports: Dict[str, PortSpec] = {}
         self._output_ports: Dict[str, PortSpec] = {}
         self._setup_ports()
@@ -321,6 +326,56 @@ class BrainNode(ABC):
         """
         ...
 
+    def _get_default_output(self) -> BrainData:
+        """Create a zero/default output based on the node's output port spec.
+
+        Used as fallback when process() raises an exception.
+        """
+        out_port = self._output_ports.get("OUT")
+        if out_port is not None and out_port.data_type is not None:
+            expected_type = out_port.data_type
+            shape = out_port.shape if out_port.shape else (1, 1, 8, 8)
+            if expected_type is Tensor:
+                return Tensor.zeros(shape)
+            elif expected_type is StateVector:
+                dim = shape[0] if shape else 128
+                return StateVector.zeros(dim)
+        return Signal(value=0.0, timestamp=time.time())
+
+    def safe_process(self, data: BrainData) -> BrainData:
+        """Process with validation and graceful degradation.
+
+        Wraps process() with _validate_input and _validate_output.
+        If validation fails, logs a warning and continues (graceful degradation).
+        If process() itself raises, logs the error and returns a default output.
+
+        Use this in production code paths instead of calling process() directly.
+        """
+        try:
+            self._validate_input(data)
+        except ValueError as e:
+            logger.warning(f"Input validation failed (degrading): {e}")
+
+        try:
+            result = self.process(data)
+        except Exception as e:
+            error_msg = f"Node {self.node_id}: {str(e)}"
+            logger.warning(
+                f"Node {self.node_id} ({self.short_name}) process() failed "
+                f"(returning default): {e}"
+            )
+            self._last_process_error = error_msg
+            return self._get_default_output()
+
+        self._last_process_error = None
+
+        try:
+            self._validate_output(result)
+        except ValueError as e:
+            logger.warning(f"Output validation failed (degrading): {e}")
+
+        return result
+
     def push_async(self, data: BrainData) -> None:
         """ASYNC_PUSH protocol: fire-and-forget to children.
 
@@ -376,14 +431,41 @@ class BrainNode(ABC):
         logger.debug(f"[PUB_SUB] {self.short_name} published to {len(self._children)} subscribers")
 
     def receive(self, data: BrainData) -> None:
-        """Receive data from parent (called by parent's push/publish)."""
+        """Receive data from parent (called by parent's push/publish).
+
+        If the input queue is full, the oldest item is dropped
+        (backpressure via drop-oldest strategy).
+        """
+        maxlen = self._input_queue.maxlen
+        if maxlen is not None and len(self._input_queue) >= maxlen:
+            logger.warning(
+                f"Node {self.node_id} ({self.short_name}) "
+                f"input queue full, dropping oldest item"
+            )
         self._input_queue.append(data)
 
     def _update_metrics(self, elapsed: float) -> None:
-        """Update processing metrics."""
+        """Update processing metrics.
+
+        Called internally by node's process() method. Increments
+        process_count and records latency.
+        """
         self._process_count += 1
         self._last_process_time = elapsed
         self._total_process_time += elapsed
+
+    def _record_scheduler_latency(self, elapsed: float) -> None:
+        """Record latency measured by the scheduler.
+
+        Unlike _update_metrics, this does NOT increment process_count
+        (avoiding double counting). It only updates latency stats if
+        the node did not already record them in process().
+        """
+        # Only update if the node hasn't recorded its own latency
+        # (i.e., _last_process_time is still 0 or this is a generated node)
+        if self._last_process_time == 0.0:
+            self._last_process_time = elapsed
+            self._total_process_time += elapsed
 
     def get_state(self, key: str, default: Any = None) -> Any:
         """Get internal state value."""

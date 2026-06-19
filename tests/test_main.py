@@ -9,7 +9,7 @@ def test_main_help():
 
 def test_main_runs():
     result = subprocess.run(
-        [sys.executable, "-m", "brain_agent.main", "--steps", "5", "--log-level", "WARNING"],
+        [sys.executable, "-m", "brain_agent.main", "--steps", "5", "--log-level", "WARNING", "--no-server"],
         capture_output=True, text=True, cwd="/workspace/BrainAgentSystem"
     )
     assert result.returncode == 0

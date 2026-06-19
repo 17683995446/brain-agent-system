@@ -307,7 +307,7 @@ class BrainTreeBuilder:
         tree = self._assemble_tree(node_class)
 
         logger.info(f"Built tree from JSON: {tree.total_nodes} nodes, "
-                     f"max layer: {tree.max_layer}")
+                    f"max layer: {tree.max_layer}")
         return tree
 
     def _resolve_children_ids(self) -> None:

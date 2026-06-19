@@ -95,7 +95,7 @@ class SomatosensoryPathwayNode(BrainNode):
         """
         start = time.perf_counter()
         if isinstance(data, Tensor):
-            result = self._process_tensor(data)
+            result: BrainData = self._process_tensor(data)
         elif isinstance(data, StateVector):
             result = self._process_state_vector(data)
         elif isinstance(data, Signal):
@@ -192,7 +192,7 @@ class SomatosensoryPathwayNode(BrainNode):
             padded[1:-1, :-2] + padded[1:-1, 2:] -
             4 * padded[1:-1, 1:-1]
         )
-        return np.maximum(laplacian, 0.0).astype(np.float32)
+        return np.maximum(laplacian, 0.0).astype(np.float32)  # type: ignore[no-any-return]
 
     def _gradient_magnitude(self, data: np.ndarray) -> np.ndarray:
         """Compute gradient magnitude for vibration detection.
@@ -202,7 +202,7 @@ class SomatosensoryPathwayNode(BrainNode):
         """
         gy, gx = np.gradient(data.astype(np.float64))
         magnitude = np.sqrt(gx**2 + gy**2)
-        return magnitude.astype(np.float32)
+        return magnitude.astype(np.float32)  # type: ignore[no-any-return]
 
     def _lateral_inhibition(self, data: np.ndarray) -> np.ndarray:
         """Apply lateral inhibition for spatial sharpening.

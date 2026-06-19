@@ -69,7 +69,7 @@ class NoradrenalineSystemNode(BrainNode):
         """
         start = time.perf_counter()
         if isinstance(data, Tensor):
-            result = self._process_tensor(data)
+            result: BrainData = self._process_tensor(data)
         elif isinstance(data, StateVector):
             result = self._process_state_vector(data)
         elif isinstance(data, Signal):
@@ -121,7 +121,7 @@ class NoradrenalineSystemNode(BrainNode):
 
         return new_arousal
 
-    def _determine_mode(self, arousal: np.float32, salience: float):
+    def _determine_mode(self, arousal: np.float32, salience: float) -> None:
         """Determine phasic vs tonic release mode.
 
         Phasic mode: Focused task performance

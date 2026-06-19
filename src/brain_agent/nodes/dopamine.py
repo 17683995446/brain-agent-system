@@ -70,7 +70,7 @@ class DopamineSystemNode(BrainNode):
         """
         start = time.perf_counter()
         if isinstance(data, Tensor):
-            result = self._process_tensor(data)
+            result: BrainData = self._process_tensor(data)
         elif isinstance(data, StateVector):
             result = self._process_state_vector(data)
         elif isinstance(data, Signal):
@@ -102,7 +102,7 @@ class DopamineSystemNode(BrainNode):
 
         return rpe
 
-    def _update_value(self, reward: float):
+    def _update_value(self, reward: float) -> None:
         """Update value estimate via TD learning.
 
         TD(0) update: V(s) = V(s) + alpha * [r + gamma * V(s') - V(s)]
@@ -136,7 +136,7 @@ class DopamineSystemNode(BrainNode):
             history = history[-100:]
         self.set_state("reward_history", history)
 
-    def _compute_d1_d2(self, rpe: np.float32):
+    def _compute_d1_d2(self, rpe: np.float32) -> None:
         """Compute D1 (Go) and D2 (NoGo) pathway signals.
 
         D1 receptor (direct pathway): activated by positive RPE
