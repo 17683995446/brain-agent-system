@@ -113,6 +113,13 @@ class FrequencyScheduler:
             FrequencyBand.SLOW: 0,
         }
         self._band_nodes: Dict[FrequencyBand, List[BrainNode]] = {}
+        # Track nodes already processed in current step (SYNC_CALL dedup)
+        self._processed_this_step: set = set()
+        # Cache for default inputs (avoids re-allocating zeros every step)
+        self._default_input_cache: Dict[int, BrainData] = {}
+        # Compute step ratios from dt values (configurable)
+        self._medium_ratio = max(1, int(round(self._config.dt_medium / self._config.dt_fast)))
+        self._slow_ratio = max(1, int(round(self._config.dt_slow / self._config.dt_fast)))
         self._classify_nodes()
 
     def _classify_nodes(self) -> None:
@@ -144,56 +151,79 @@ class FrequencyScheduler:
     def _get_default_input(self, node: BrainNode) -> BrainData:
         """Generate appropriate default input based on node's expected data type.
 
+        Uses a cache to avoid re-allocating zero tensors every step.
         Returns a Signal for modulation nodes, Tensor for sensory/motor/relay,
         and StateVector for memory nodes. Shape/dimension is read from the
         node's input port specification.
         """
+        # Check cache first
+        if node.node_id in self._default_input_cache:
+            return self._default_input_cache[node.node_id]
+
         in_port = node._input_ports.get("IN")
+        result: BrainData
         if in_port is not None and in_port.data_type is not None:
             expected_type = in_port.data_type
             if expected_type is Tensor:
                 # Use the port's expected shape, or a small default
                 shape = in_port.shape if in_port.shape else (1, 1, 8, 8)
-                return Tensor.zeros(shape)
+                result = Tensor.zeros(shape)
             elif expected_type is StateVector:
                 # Use the port's expected dimension
                 dim = in_port.shape[0] if in_port.shape else 128
-                return StateVector.zeros(dim)
-        # Default: Signal for modulation/unknown nodes
-        return Signal(value=1.0, timestamp=self._sim_time)
+                result = StateVector.zeros(dim)
+            else:
+                result = Signal(value=1.0, timestamp=self._sim_time)
+        else:
+            # Default: Signal for modulation/unknown nodes
+            result = Signal(value=1.0, timestamp=self._sim_time)
+
+        # Cache for reuse (Tensor/StateVector are immutable, safe to share)
+        self._default_input_cache[node.node_id] = result
+        return result
 
     def _process_node_with_protocol(self, node: BrainNode, data: BrainData) -> Optional[str]:
         """Process a node and propagate results to children via its protocol.
 
-        The scheduler calls safe_process(), then uses the protocol
-        method to push results to children's input queues (without
-        processing them). This preserves frequency band isolation.
+        Each protocol has distinct semantics:
 
-        Note: Metrics are updated inside each node's process() method.
-        The scheduler does NOT call _update_metrics to avoid double counting.
-
-        - ASYNC_PUSH: process, then push_async to children (queue only)
-        - SYNC_CALL: process, then queue results to children
-        - PUB_SUB: process, then publish to children (queue only)
+        - ASYNC_PUSH: Fire-and-forget. Process parent, push result to
+          children's input queues. Children process at their own frequency.
+        - SYNC_CALL: Synchronous call. Process parent, then immediately
+          process each child with the parent's result. Children are
+          processed inline within this step (recursive).
+        - PUB_SUB: Broadcast. Process parent, push result to all
+          children's queues. Semantically a broadcast to subscribers.
 
         Returns error string if process() failed, None on success.
         """
         # Process the node directly (metrics updated inside process())
+        # Skip if already processed via SYNC_CALL recursion this step
+        if node.node_id in self._processed_this_step:
+            return None
+        self._processed_this_step.add(node.node_id)
+
         t_start = time.perf_counter()
         result = node.safe_process(data)
         elapsed = time.perf_counter() - t_start
         # Record latency for generated nodes that don't self-report
         node._record_scheduler_latency(elapsed)
 
-        # Propagate to children based on protocol (queue only, don't process)
+        # Propagate to children based on protocol semantics
         if node._children:
             if node.protocol == Protocol.ASYNC_PUSH:
+                # Fire-and-forget: queue result for children
                 for child in node._children.values():
                     child.receive(result)
+
             elif node.protocol == Protocol.SYNC_CALL:
+                # Synchronous: process each child immediately with parent's result
                 for child in node._children.values():
-                    child.receive(result)
+                    child_err = self._process_node_with_protocol(child, result)
+                    # Child errors are recorded but don't stop siblings
+
             else:  # PUB_SUB
+                # Broadcast: queue result for all subscriber children
                 for child in node._children.values():
                     child.receive(result)
 
@@ -205,11 +235,16 @@ class FrequencyScheduler:
         Processes all nodes in the fast band, and nodes in medium/slow bands
         based on their step counters. After processing each node, results
         are propagated to children's input queues via the node's protocol.
+
+        Nodes already processed via SYNC_CALL recursive propagation are
+        skipped in the band iteration to avoid double processing.
         """
         errors: List[str] = []
         nodes_processed = 0
         max_latency = 0.0
         total_latency = 0.0
+        # Track nodes already processed this step (via SYNC_CALL recursion)
+        self._processed_this_step: set = set()
 
         # Determine the input data for this step
         # (external input for root, per-node defaults for others)
@@ -236,9 +271,9 @@ class FrequencyScheduler:
             except Exception as e:
                 errors.append(f"Node {node.node_id}: {str(e)}")
 
-        # Process medium band every 4 steps (20ms / 5ms = 4)
+        # Process medium band based on configurable ratio
         self._band_counters[FrequencyBand.MEDIUM] += 1
-        if self._band_counters[FrequencyBand.MEDIUM] >= 4:
+        if self._band_counters[FrequencyBand.MEDIUM] >= self._medium_ratio:
             self._band_counters[FrequencyBand.MEDIUM] = 0
             for node in self._band_nodes[FrequencyBand.MEDIUM]:
                 try:
@@ -257,9 +292,9 @@ class FrequencyScheduler:
                 except Exception as e:
                     errors.append(f"Node {node.node_id}: {str(e)}")
 
-        # Process slow band every 20 steps (100ms / 5ms = 20)
+        # Process slow band based on configurable ratio
         self._band_counters[FrequencyBand.SLOW] += 1
-        if self._band_counters[FrequencyBand.SLOW] >= 20:
+        if self._band_counters[FrequencyBand.SLOW] >= self._slow_ratio:
             self._band_counters[FrequencyBand.SLOW] = 0
             for node in self._band_nodes[FrequencyBand.SLOW]:
                 try:
@@ -339,6 +374,7 @@ class FrequencyScheduler:
         self._step = 0
         self._sim_time = 0.0
         self._results.clear()
+        self._default_input_cache.clear()
         for band in self._band_counters:
             self._band_counters[band] = 0
         for node in self._tree.bfs_traverse():

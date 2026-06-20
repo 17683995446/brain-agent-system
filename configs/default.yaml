@@ -2,13 +2,22 @@ brain:
   total_nodes: 2047
   max_layers: 11
   tree_type: binary_full
+  json_path: null  # Auto-discover brain_tree_v5.json
 
 simulation:
-  dt_fast: 0.005    # 5ms for 100-200Hz
-  dt_medium: 0.02   # 20ms for 10-50Hz
-  dt_slow: 0.1      # 100ms for 1-10Hz
-  max_latency_ms: 10
+  dt_fast: 0.005      # 5ms for 100-200Hz sensory pathways
+  dt_medium: 0.02     # 20ms for 10-50Hz motor/memory pathways
+  dt_slow: 0.1        # 100ms for 1-10Hz modulation systems
+  max_latency_ms: 10  # Maximum allowed single-node latency
+  max_steps: 0        # 0 = infinite (use --steps CLI arg instead)
 
 monitoring:
   enabled: true
+  enable_metrics: true
   metrics_port: 9090
+  enable_tracing: false
+
+logging:
+  level: INFO         # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  json_format: false  # Set true for structured JSON logs
+  log_file: null      # Set to a path to write logs to file

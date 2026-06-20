@@ -39,6 +39,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="大脑仿真Agent系统")
     parser.add_argument("--json", type=str, default=None, help="Path to brain tree JSON file")
     parser.add_argument("--steps", type=int, default=100, help="Number of simulation steps (0=infinite)")
+    parser.add_argument("--config", type=str, default=None, help="Path to YAML config file")
     parser.add_argument(
         "--log-level",
         type=str,
@@ -47,6 +48,7 @@ def main() -> None:
         help="Logging level",
     )
     parser.add_argument("--output", type=str, default=None, help="Output metrics file")
+    parser.add_argument("--export", type=str, default=None, help="Export results to file (JSON/CSV/NPZ)")
     parser.add_argument("--json-logs", action="store_true", help="Use JSON log format")
     parser.add_argument("--log-file", type=str, default=None, help="Log file path")
     parser.add_argument("--port", type=int, default=9090, help="Health/metrics server port")
@@ -71,7 +73,10 @@ def main() -> None:
 
     # Load and validate configuration
     try:
-        brain_config = BrainConfig.from_defaults()
+        if args.config:
+            brain_config = BrainConfig.from_yaml(args.config)
+        else:
+            brain_config = BrainConfig.from_defaults()
         config_errors = brain_config.validate()
         if config_errors:
             logger.error(f"Configuration validation failed: {config_errors}")
@@ -126,10 +131,19 @@ def main() -> None:
         logger.error(f"Tree validation error: {e}", exc_info=True)
         sys.exit(1)
 
-    # Create scheduler
-    config = SchedulerConfig(max_steps=args.steps if args.steps > 0 else 0)
-    scheduler = FrequencyScheduler(tree, config)
+    # Create scheduler from BrainConfig
+    scheduler_config = brain_config.to_scheduler_config()
+    if args.steps > 0:
+        scheduler_config.max_steps = args.steps
+    scheduler = FrequencyScheduler(tree, scheduler_config)
     logger.info(f"Scheduler initialized: {scheduler.get_stats()}")
+    logger.info(
+        f"Config: dt_fast={scheduler_config.dt_fast}s, "
+        f"dt_medium={scheduler_config.dt_medium}s, "
+        f"dt_slow={scheduler_config.dt_slow}s, "
+        f"medium_ratio={scheduler._medium_ratio}, "
+        f"slow_ratio={scheduler._slow_ratio}"
+    )
 
     # Create monitoring
     metrics = MetricsCollector(tree)
@@ -223,6 +237,18 @@ def main() -> None:
             logger.error(f"Failed to write metrics file: {e}")
         except Exception as e:
             logger.error(f"Unexpected error writing metrics: {e}", exc_info=True)
+
+    # Export results (JSON/CSV/NPZ)
+    if args.export:
+        try:
+            from .io.output import create_exporter
+            exporter = create_exporter(args.export)
+            exporter.export_results(results)
+            exporter.export_metrics(metrics)
+            exporter.close()
+            logger.info(f"Results exported to: {args.export}")
+        except Exception as e:
+            logger.error(f"Failed to export results: {e}", exc_info=True)
 
     # Graceful shutdown
     shutdown.run_callbacks()

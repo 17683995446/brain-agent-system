@@ -140,3 +140,24 @@ class BrainConfig:
             errors.append(f"monitoring.metrics_port must be 1-65535, got {metrics_port}")
 
         return errors
+
+    def to_scheduler_config(self) -> "SchedulerConfig":
+        """Convert BrainConfig to SchedulerConfig.
+
+        Maps the YAML/environment configuration to the scheduler's
+        dataclass configuration. This bridges the config system to
+        the runtime scheduler.
+
+        Returns:
+            SchedulerConfig instance populated from this BrainConfig.
+        """
+        from .scheduler import SchedulerConfig
+
+        return SchedulerConfig(
+            dt_fast=self.get_float("simulation.dt_fast", 0.005),
+            dt_medium=self.get_float("simulation.dt_medium", 0.02),
+            dt_slow=self.get_float("simulation.dt_slow", 0.1),
+            max_latency_ms=self.get_float("simulation.max_latency_ms", 10.0),
+            max_steps=self.get_int("simulation.max_steps", 0),
+            enable_metrics=self.get_bool("monitoring.enable_metrics", True),
+        )
