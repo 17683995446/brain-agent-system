@@ -353,7 +353,7 @@ class TestResultExporter:
         node_0 = states[0]
         assert "node_id" in node_0
         assert "process_count" in node_0
-        assert "queue_length" in node_0
+        assert "queue_depth" in node_0
 
     def test_summary(self):
         exporter = create_exporter()

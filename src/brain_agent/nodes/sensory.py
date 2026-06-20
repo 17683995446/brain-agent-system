@@ -11,11 +11,10 @@ different sensory modalities.
 """
 
 from __future__ import annotations
-import time
 import numpy as np
 
 from ..node import BrainNode, NodeConfig
-from ..types import BrainData, Tensor, StateVector, Signal, Message
+from ..types import Tensor, StateVector, Signal
 
 
 class SensoryPathwayNode(BrainNode):
@@ -67,32 +66,6 @@ class SensoryPathwayNode(BrainNode):
             gabor *= np.cos(2 * np.pi * x_prime / lambd)
             gabor = gabor.astype(np.float32)
             self._filters.append(gabor)
-
-    def process(self, data: BrainData) -> BrainData:
-        """Apply Gabor-like filtering and normalization.
-
-        Tensor[float32, 32x32x8] -> Tensor[float32, 32x32x8]
-
-        Args:
-            data: Input data (Tensor, StateVector, Signal, or Message)
-
-        Returns:
-            Feature-enhanced output
-        """
-        start = time.perf_counter()
-        if isinstance(data, Tensor):
-            result: BrainData = self._process_tensor(data)
-        elif isinstance(data, StateVector):
-            result = self._process_state_vector(data)
-        elif isinstance(data, Signal):
-            result = self._process_signal(data)
-        elif isinstance(data, Message):
-            result = data
-        else:
-            raise ValueError(f"Unsupported data type: {type(data).__name__}")
-
-        self._update_metrics(time.perf_counter() - start)
-        return result
 
     def _process_tensor(self, data: Tensor) -> Tensor:
         """Apply Gabor filtering and normalization to tensor input.

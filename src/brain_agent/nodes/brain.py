@@ -57,11 +57,11 @@ class BrainSystemNode(BrainNode):
         self.set_state("arousal", arousal)
 
         if isinstance(data, Tensor):
-            result: BrainData = self._process_tensor(data, arousal)
+            result: BrainData = self._apply_tensor_modulation(data, arousal)
         elif isinstance(data, StateVector):
-            result = self._process_state_vector(data, arousal)
+            result = self._apply_state_vector_modulation(data, arousal)
         elif isinstance(data, Signal):
-            result = self._process_signal(data, arousal)
+            result = self._apply_signal_modulation(data, arousal)
         elif isinstance(data, Message):
             result = data  # Pass through control messages unchanged
         else:
@@ -97,7 +97,7 @@ class BrainSystemNode(BrainNode):
         new_arousal = current_arousal * (1.0 - alpha) + salience * alpha
         return np.float32(np.clip(new_arousal, 0.0, 1.0))
 
-    def _process_tensor(self, data: Tensor, arousal: np.float32) -> Tensor:
+    def _apply_tensor_modulation(self, data: Tensor, arousal: np.float32) -> Tensor:
         """Apply global modulation to tensor input.
 
         Uses arousal as a multiplicative gain factor applied uniformly
@@ -121,7 +121,7 @@ class BrainSystemNode(BrainNode):
 
         return Tensor(data=modulated, shape=data.shape)
 
-    def _process_state_vector(self, data: StateVector, arousal: np.float32) -> StateVector:
+    def _apply_state_vector_modulation(self, data: StateVector, arousal: np.float32) -> StateVector:
         """Apply global modulation to state vector input.
 
         Computes attention-weighted integration between current global
@@ -141,7 +141,7 @@ class BrainSystemNode(BrainNode):
 
         return StateVector(data=modulated.astype(np.float32), dimension=data.dimension)
 
-    def _process_signal(self, data: Signal, arousal: np.float32) -> Signal:
+    def _apply_signal_modulation(self, data: Signal, arousal: np.float32) -> Signal:
         """Apply global modulation to scalar signal.
 
         Arousal gates the signal amplitude, simulating how global brain

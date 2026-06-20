@@ -14,104 +14,95 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-# Processing logic templates per region type
+# Processing logic templates per region type.
+# Templates override _process_* hooks (not process()) to use the base class
+# template method pattern. Random weights use a deterministic seed based on
+# node_id to ensure reproducibility.
 PROCESS_TEMPLATES = {
-    "sensory": '''    def process(self, data: BrainData) -> BrainData:
+    "sensory": '''    def _process_tensor(self, data: BrainData) -> BrainData:
         """{responsibility}"""
-        if isinstance(data, Tensor):
-            # Feature extraction with receptive field computation
-            arr = data.data.copy()
-            # Apply region-specific filtering
-            kernel = self.get_state("kernel")
-            if kernel is None:
-                h, w = arr.shape[1], arr.shape[2]
-                kh, kw = min(3, h), min(3, w)
-                kernel = np.random.randn(kh, kw).astype(np.float32) * 0.1
-                self.set_state("kernel", kernel)
-            # Simple convolution-like operation
-            result = arr.copy()
-            for c in range(arr.shape[0]):
-                for i in range(arr.shape[1] - kernel.shape[0] + 1):
-                    for j in range(arr.shape[2] - kernel.shape[1] + 1):
-                        result[c, i, j] = np.sum(
-                            arr[c, i:i+kernel.shape[0], j:j+kernel.shape[1]] * kernel
-                        )
-            return Tensor(data=result, shape=result.shape)
-        elif isinstance(data, Signal):
-            return Signal(
-                value=data.value * self.get_state("gain", 1.0),
-                timestamp=data.timestamp,
-            )
-        return data''',
+        arr = data.data.copy()
+        kernel = self.get_state("kernel")
+        if kernel is None:
+            h, w = arr.shape[1], arr.shape[2]
+            kh, kw = min(3, h), min(3, w)
+            rng = np.random.RandomState(self.node_id)
+            kernel = rng.randn(kh, kw).astype(np.float32) * 0.1
+            self.set_state("kernel", kernel)
+        result = arr.copy()
+        for c in range(arr.shape[0]):
+            for i in range(arr.shape[1] - kernel.shape[0] + 1):
+                for j in range(arr.shape[2] - kernel.shape[1] + 1):
+                    result[c, i, j] = np.sum(
+                        arr[c, i:i+kernel.shape[0], j:j+kernel.shape[1]] * kernel
+                    )
+        return Tensor(data=result, shape=result.shape)
 
-    "motor": '''    def process(self, data: BrainData) -> BrainData:
-        """{responsibility}"""
-        if isinstance(data, Tensor):
-            arr = data.data.copy()
-            # Muscle activation scaling
-            gain = self.get_state("gain", 1.0)
-            threshold = self.get_state("threshold", 0.0)
-            result = np.maximum(arr * gain - threshold, 0)
-            return Tensor(data=result, shape=result.shape)
-        elif isinstance(data, Signal):
-            return Signal(
-                value=max(data.value * self.get_state("gain", 1.0), 0.0),
-                timestamp=data.timestamp,
-            )
-        return data''',
+    def _process_signal(self, data: BrainData) -> BrainData:
+        return Signal(
+            value=data.value * self.get_state("gain", 1.0),
+            timestamp=data.timestamp,
+        )''',
 
-    "memory": '''    def process(self, data: BrainData) -> BrainData:
+    "motor": '''    def _process_tensor(self, data: BrainData) -> BrainData:
         """{responsibility}"""
-        if isinstance(data, StateVector):
-            arr = data.data.copy()
-            # Memory encoding/retrieval with Hebbian-like update
-            weights = self.get_state("weights")
-            if weights is None:
-                dim = len(arr)
-                weights = np.random.randn(dim, dim).astype(np.float32) * 0.01
-                self.set_state("weights", weights)
-            result = arr @ weights
-            # Normalize
-            norm = np.linalg.norm(result)
-            if norm > 0:
-                result = result / norm * np.linalg.norm(arr)
-            return StateVector(data=result.astype(np.float32), dimension=len(result))
-        elif isinstance(data, Tensor):
-            arr = data.data.copy()
-            return Tensor(data=arr * self.get_state("gain", 1.0), shape=arr.shape)
-        return data''',
+        arr = data.data.copy()
+        gain = self.get_state("gain", 1.0)
+        threshold = self.get_state("threshold", 0.0)
+        result = np.maximum(arr * gain - threshold, 0)
+        return Tensor(data=result, shape=result.shape)
 
-    "modulation": '''    def process(self, data: BrainData) -> BrainData:
-        """{responsibility}"""
-        if isinstance(data, Signal):
-            # Neuromodulator gain modulation (inverted-U)
-            level = self.get_state("mod_level", 0.5)
-            gain = 4.0 * level * (1.0 - level)  # inverted-U: max at 0.5
-            return Signal(value=data.value * gain, timestamp=data.timestamp)
-        elif isinstance(data, Tensor):
-            arr = data.data.copy()
-            level = self.get_state("mod_level", 0.5)
-            gain = 4.0 * level * (1.0 - level)
-            return Tensor(data=arr * gain, shape=arr.shape)
-        return data''',
+    def _process_signal(self, data: BrainData) -> BrainData:
+        return Signal(
+            value=max(data.value * self.get_state("gain", 1.0), 0.0),
+            timestamp=data.timestamp,
+        )''',
 
-    "relay": '''    def process(self, data: BrainData) -> BrainData:
+    "memory": '''    def _process_state_vector(self, data: BrainData) -> BrainData:
         """{responsibility}"""
-        # Signal relay with optional gating
+        arr = data.data.copy()
+        weights = self.get_state("weights")
+        if weights is None:
+            dim = len(arr)
+            rng = np.random.RandomState(self.node_id)
+            weights = rng.randn(dim, dim).astype(np.float32) * 0.01
+            self.set_state("weights", weights)
+        result = arr @ weights
+        norm = np.linalg.norm(result)
+        if norm > 0:
+            result = result / norm * np.linalg.norm(arr)
+        return StateVector(data=result.astype(np.float32), dimension=len(result))
+
+    def _process_tensor(self, data: BrainData) -> BrainData:
+        arr = data.data.copy()
+        return Tensor(data=arr * self.get_state("gain", 1.0), shape=arr.shape)''',
+
+    "modulation": '''    def _process_signal(self, data: BrainData) -> BrainData:
+        """{responsibility}"""
+        level = self.get_state("mod_level", 0.5)
+        gain = 4.0 * level * (1.0 - level)
+        return Signal(value=data.value * gain, timestamp=data.timestamp)
+
+    def _process_tensor(self, data: BrainData) -> BrainData:
+        arr = data.data.copy()
+        level = self.get_state("mod_level", 0.5)
+        gain = 4.0 * level * (1.0 - level)
+        return Tensor(data=arr * gain, shape=arr.shape)''',
+
+    "relay": '''    def _process_tensor(self, data: BrainData) -> BrainData:
+        """{responsibility}"""
         gate_open = self.get_state("gate_open", True)
         if not gate_open:
-            if isinstance(data, Tensor):
-                return Tensor.zeros(data.data.shape)
-            elif isinstance(data, Signal):
-                return Signal(value=0.0, timestamp=data.timestamp)
-            return data
-        # Relay with gain
+            return Tensor.zeros(data.data.shape)
         gain = self.get_state("relay_gain", 1.0)
-        if isinstance(data, Tensor):
-            return Tensor(data=data.data * gain, shape=data.data.shape)
-        elif isinstance(data, Signal):
-            return Signal(value=data.value * gain, timestamp=data.timestamp)
-        return data''',
+        return Tensor(data=data.data * gain, shape=data.data.shape)
+
+    def _process_signal(self, data: BrainData) -> BrainData:
+        gate_open = self.get_state("gate_open", True)
+        if not gate_open:
+            return Signal(value=0.0, timestamp=data.timestamp)
+        gain = self.get_state("relay_gain", 1.0)
+        return Signal(value=data.value * gain, timestamp=data.timestamp)''',
 }
 
 

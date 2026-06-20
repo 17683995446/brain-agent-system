@@ -219,7 +219,7 @@ class FrequencyScheduler:
             elif node.protocol == Protocol.SYNC_CALL:
                 # Synchronous: process each child immediately with parent's result
                 for child in node._children.values():
-                    child_err = self._process_node_with_protocol(child, result)
+                    self._process_node_with_protocol(child, result)
                     # Child errors are recorded but don't stop siblings
 
             else:  # PUB_SUB
@@ -243,8 +243,8 @@ class FrequencyScheduler:
         nodes_processed = 0
         max_latency = 0.0
         total_latency = 0.0
-        # Track nodes already processed this step (via SYNC_CALL recursion)
-        self._processed_this_step: set = set()
+        # Reset per-step processing tracker (for SYNC_CALL dedup)
+        self._processed_this_step.clear()
 
         # Determine the input data for this step
         # (external input for root, per-node defaults for others)
@@ -368,6 +368,26 @@ class FrequencyScheduler:
             },
             "total_nodes": self._tree.total_nodes,
         }
+
+    @property
+    def step_count(self) -> int:
+        """Current step number (public read-only access)."""
+        return self._step
+
+    @property
+    def sim_time(self) -> float:
+        """Current simulation time in seconds (public read-only access)."""
+        return self._sim_time
+
+    @property
+    def medium_ratio(self) -> int:
+        """Medium band step ratio (public read-only access)."""
+        return self._medium_ratio
+
+    @property
+    def slow_ratio(self) -> int:
+        """Slow band step ratio (public read-only access)."""
+        return self._slow_ratio
 
     def reset(self) -> None:
         """Reset scheduler state."""

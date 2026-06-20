@@ -18,7 +18,6 @@ Usage:
 
 import logging
 import time
-from pathlib import Path
 from typing import List, Optional, Callable, Dict, Any
 
 from .tree import BrainTree, BrainTreeBuilder
@@ -26,22 +25,9 @@ from .node import BrainNode
 from .scheduler import FrequencyScheduler, SchedulerConfig, StepResult
 from .monitoring import MetricsCollector, Tracer
 from .types import BrainData
+from .paths import find_brain_tree_json
 
 logger = logging.getLogger(__name__)
-
-
-def _find_json_path() -> str:
-    """Find brain_tree_v5.json in standard locations."""
-    search_paths = [
-        Path(__file__).parent.parent / "data" / "brain_tree_v5.json",
-        Path("/workspace/BrainAgentSystem/data/brain_tree_v5.json"),
-    ]
-    for p in search_paths:
-        if p.exists():
-            return str(p)
-    raise FileNotFoundError(
-        "brain_tree_v5.json not found. Specify json_path explicitly."
-    )
 
 
 def create_simulation(
@@ -133,7 +119,7 @@ class Simulation:
             A Simulation instance.
         """
         if json_path is None:
-            json_path = _find_json_path()
+            json_path = find_brain_tree_json()
 
         logger.info(f"Loading brain tree from: {json_path}")
         start = time.perf_counter()
@@ -235,12 +221,12 @@ class Simulation:
     @property
     def step_count(self) -> int:
         """Get the current step number."""
-        return self.scheduler._step
+        return self.scheduler.step_count
 
     @property
     def sim_time(self) -> float:
         """Get the current simulation time in seconds."""
-        return self.scheduler._sim_time
+        return self.scheduler.sim_time
 
     def export_metrics(self, format: str = "prometheus") -> str:
         """Export collected metrics.

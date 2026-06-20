@@ -13,25 +13,20 @@ from pathlib import Path
 from typing import Optional, List
 
 from .tree import BrainTreeBuilder
-from .scheduler import FrequencyScheduler, SchedulerConfig, StepResult
-from .monitoring import MetricsCollector, Tracer
+from .scheduler import FrequencyScheduler, StepResult
+from .monitoring import MetricsCollector
 from .logging_config import setup_logging
 from .server import HealthServer
 from .lifecycle import GracefulShutdown
 from .config import BrainConfig
+from .paths import find_brain_tree_json
 
-
-def _find_json_path() -> str:
-    """Find brain_tree_v5.json in standard locations."""
-    search_paths = [
-        Path(__file__).parent.parent / "data" / "brain_tree_v5.json",
-        Path("/workspace/BrainAgentSystem/data/brain_tree_v5.json"),
-        Path("/data/user/work/brain_tree_v5.json"),
-    ]
-    for p in search_paths:
-        if p.exists():
-            return str(p)
-    raise FileNotFoundError("brain_tree_v5.json not found in any search path")
+__version__ = "0.4.0"
+try:
+    from importlib.metadata import version as _get_version
+    __version__ = _get_version("brain-agent-system")
+except Exception:
+    pass
 
 
 def main() -> None:
@@ -64,7 +59,7 @@ def main() -> None:
     logger = logging.getLogger(__name__)
 
     logger.info("=" * 60)
-    logger.info("大脑仿真Agent系统 v0.1.0")
+    logger.info("大脑仿真Agent系统 v%s", __version__)
     logger.info("=" * 60)
 
     # Initialize graceful shutdown
@@ -94,7 +89,7 @@ def main() -> None:
             json_path = env_path
     if not json_path:
         try:
-            json_path = _find_json_path()
+            json_path = find_brain_tree_json()
         except FileNotFoundError as e:
             logger.error(f"JSON file not found: {e}")
             sys.exit(1)
@@ -141,13 +136,12 @@ def main() -> None:
         f"Config: dt_fast={scheduler_config.dt_fast}s, "
         f"dt_medium={scheduler_config.dt_medium}s, "
         f"dt_slow={scheduler_config.dt_slow}s, "
-        f"medium_ratio={scheduler._medium_ratio}, "
-        f"slow_ratio={scheduler._slow_ratio}"
+        f"medium_ratio={scheduler.medium_ratio}, "
+        f"slow_ratio={scheduler.slow_ratio}"
     )
 
     # Create monitoring
     metrics = MetricsCollector(tree)
-    Tracer()
 
     # Start health server (non-fatal if it fails)
     server: Optional[HealthServer] = None

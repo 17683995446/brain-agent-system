@@ -171,22 +171,31 @@ BrainAgentSystem/
 │   ├── __init__.py             # 公共API导出
 │   ├── api.py                  # 高层API（Simulation类）
 │   ├── types.py                # 核心数据类型
-│   ├── node.py                 # 节点基类
+│   ├── node.py                 # 节点基类（process()模板方法）
 │   ├── tree.py                 # 脑树构建器
 │   ├── scheduler.py            # 多频段调度器
-│   ├── config.py               # 配置管理
+│   ├── config.py               # 配置管理（BrainConfig→SchedulerConfig）
+│   ├── paths.py                # 路径发现（单一JSON搜索逻辑）
 │   ├── main.py                 # CLI入口
 │   ├── server.py               # HTTP健康检查服务
 │   ├── lifecycle.py            # 优雅关闭
+│   ├── codegen.py              # 节点代码生成器（构建期工具）
+│   ├── experiment.py           # 批量实验框架
 │   ├── io/                     # 数据I/O
 │   │   ├── input.py            # 输入适配器（JSON/NPZ/CSV/数组/回调）
 │   │   └── output.py           # 结果导出器（JSON/CSV/NPZ）
-│   ├── protocols/              # 通信协议实现
-│   ├── nodes/                  # 核心节点实现（15个脑区）
-│   ├── generated/              # 自动生成的节点（2032个）
+│   ├── nodes/                  # 手写核心节点（15个脑区）
+│   ├── generated/              # 自动生成的节点（2032个，单一文件）
 │   └── monitoring/             # 监控与可观测性
-├── examples/                   # 使用示例
+├── examples/                   # 使用示例（5个）
 ├── configs/                    # 配置文件
+├── docs/                       # 文档
+│   ├── api.md                  # API参考
+│   ├── architecture.md         # 架构说明
+│   ├── types.md                # 类型系统
+│   ├── INTERFACE_SPEC.md       # 接口规范
+│   ├── DESIGN_TEMPLATE.md      # 设计模板
+│   └── planning/               # 规划文档
 ├── tests/                      # 测试套件
 └── data/                       # 脑树定义JSON
 ```

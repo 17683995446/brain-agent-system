@@ -5,9 +5,12 @@ Supports layered configuration: YAML file -> environment variables -> code.
 
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import yaml
+
+if TYPE_CHECKING:
+    from .scheduler import SchedulerConfig
 
 
 class BrainConfig:
@@ -37,7 +40,7 @@ class BrainConfig:
         prefix = "BRAIN_"
         for key, value in os.environ.items():
             if key.startswith(prefix):
-                config_key = key[len(prefix) :].lower()
+                config_key = key[len(prefix):].lower()
                 parts = config_key.split("_")
                 current = self._config
                 for part in parts[:-1]:

@@ -12,11 +12,10 @@ these principles using numpy operations on StateVector[float32, 128].
 """
 
 from __future__ import annotations
-import time
 import numpy as np
 
 from ..node import BrainNode, NodeConfig
-from ..types import BrainData, Tensor, StateVector, Signal, Message
+from ..types import Tensor, StateVector, Signal
 
 
 class MemorySystemNode(BrainNode):
@@ -45,32 +44,6 @@ class MemorySystemNode(BrainNode):
         self.set_state("consolidation_level", np.float32(0.0))
         # Memory capacity
         self.set_state("memory_capacity", 100)
-
-    def process(self, data: BrainData) -> BrainData:
-        """Memory encoding, storage, and retrieval.
-
-        StateVector[float32, 128] operations.
-
-        Args:
-            data: Input data (Tensor, StateVector, Signal, or Message)
-
-        Returns:
-            Memory-processed output
-        """
-        start = time.perf_counter()
-        if isinstance(data, Tensor):
-            result: BrainData = self._process_tensor(data)
-        elif isinstance(data, StateVector):
-            result = self._process_state_vector(data)
-        elif isinstance(data, Signal):
-            result = self._process_signal(data)
-        elif isinstance(data, Message):
-            result = data
-        else:
-            raise ValueError(f"Unsupported data type: {type(data).__name__}")
-
-        self._update_metrics(time.perf_counter() - start)
-        return result
 
     def _process_tensor(self, data: Tensor) -> Tensor:
         """Process tensor through memory system.

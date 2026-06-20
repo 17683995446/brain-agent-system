@@ -5,7 +5,7 @@ Nodes communicate via three protocols: ASYNC_PUSH, SYNC_CALL, PUB_SUB.
 """
 
 from __future__ import annotations
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, List, Dict, Any, Tuple
@@ -14,7 +14,7 @@ import time
 import logging
 import ast
 
-from .types import BrainData, Tensor, StateVector, Signal
+from .types import BrainData, Tensor, StateVector, Signal, Message
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +104,15 @@ class BrainNode(ABC):
     """
 
     def __init__(self, config: NodeConfig):
+        # BrainNode is an abstract base class. ``process`` is provided as a
+        # concrete template method (subclasses override the ``_process_*``
+        # hooks instead), so we guard direct instantiation here to preserve
+        # the "cannot instantiate BrainNode directly" contract.
+        if type(self) is BrainNode:
+            raise TypeError(
+                "Cannot instantiate abstract class BrainNode directly; "
+                "subclass it and override the _process_* hooks."
+            )
         self._config = config
         self._state: Dict[str, Any] = {}
         self._children: Dict[int, BrainNode] = {}
@@ -293,6 +302,11 @@ class BrainNode(ABC):
             return 0.0
         return (self._total_process_time / self._process_count) * 1000
 
+    @property
+    def last_error(self) -> Optional[str]:
+        """Last process error message, or None if last process succeeded."""
+        return self._last_process_error
+
     def connect_parent(self, parent: "BrainNode") -> None:
         """Connect this node to a parent node."""
         self._parent = parent
@@ -308,12 +322,18 @@ class BrainNode(ABC):
             self._children[child_id]._parent = None
             del self._children[child_id]
 
-    @abstractmethod
     def process(self, data: BrainData) -> BrainData:
         """Process input data and return output.
 
-        This is the core computation method. Each subclass implements
-        its specific neural processing logic here.
+        This is the core computation method, implemented as a template
+        method: it records timing, dispatches to a type-specific
+        ``_process_*`` hook based on the runtime type of ``data``,
+        updates processing metrics, and returns the result.
+
+        Subclasses customize behavior by overriding the ``_process_*``
+        hooks (``_process_tensor``, ``_process_state_vector``,
+        ``_process_signal``, ``_process_message``) rather than overriding
+        this method. ``Message`` inputs pass through unchanged by default.
 
         Args:
             data: Input data from parent or external source
@@ -322,9 +342,57 @@ class BrainNode(ABC):
             Processed output data
 
         Raises:
-            ValueError: If input data type doesn't match expected type
+            ValueError: If input data type is not supported
         """
-        ...
+        start = time.perf_counter()
+        if isinstance(data, Tensor):
+            result: BrainData = self._process_tensor(data)
+        elif isinstance(data, StateVector):
+            result = self._process_state_vector(data)
+        elif isinstance(data, Signal):
+            result = self._process_signal(data)
+        elif isinstance(data, Message):
+            result = self._process_message(data)
+        else:
+            raise ValueError(f"Unsupported data type: {type(data).__name__}")
+
+        self._update_metrics(time.perf_counter() - start)
+        return result
+
+    def _process_tensor(self, data: Tensor) -> BrainData:
+        """Process a Tensor input.
+
+        Override in subclasses to implement tensor-specific logic.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement _process_tensor"
+        )
+
+    def _process_state_vector(self, data: StateVector) -> BrainData:
+        """Process a StateVector input.
+
+        Override in subclasses to implement state-vector-specific logic.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement _process_state_vector"
+        )
+
+    def _process_signal(self, data: Signal) -> BrainData:
+        """Process a Signal input.
+
+        Override in subclasses to implement signal-specific logic.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement _process_signal"
+        )
+
+    def _process_message(self, data: Message) -> BrainData:
+        """Process a Message input.
+
+        Default behavior is pass-through: the message is returned
+        unchanged. Override in subclasses to customize.
+        """
+        return data
 
     def _get_default_output(self) -> BrainData:
         """Create a zero/default output based on the node's output port spec.

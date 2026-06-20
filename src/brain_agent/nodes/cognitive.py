@@ -10,11 +10,10 @@ processing in lower-level systems, and integrates memory retrieval with emotiona
 """
 
 from __future__ import annotations
-import time
 import numpy as np
 
 from ..node import BrainNode, NodeConfig
-from ..types import BrainData, Tensor, StateVector, Signal, Message
+from ..types import Tensor, StateVector, Signal
 
 
 class CognitiveSystemNode(BrainNode):
@@ -38,33 +37,6 @@ class CognitiveSystemNode(BrainNode):
         self.set_state("goal_vector", np.zeros(128, dtype=np.float32))
         self.set_state("cognitive_load", np.float32(0.0))
         self.set_state("top_down_strength", np.float32(0.5))
-
-    def process(self, data: BrainData) -> BrainData:
-        """Process cognitive signals with top-down modulation.
-
-        Apply top-down modulation to lower systems using
-        StateVector[float32, 128] operations.
-
-        Args:
-            data: Input data (Tensor, StateVector, Signal, or Message)
-
-        Returns:
-            Cognitively processed output
-        """
-        start = time.perf_counter()
-        if isinstance(data, Tensor):
-            result: BrainData = self._process_tensor(data)
-        elif isinstance(data, StateVector):
-            result = self._process_state_vector(data)
-        elif isinstance(data, Signal):
-            result = self._process_signal(data)
-        elif isinstance(data, Message):
-            result = data
-        else:
-            raise ValueError(f"Unsupported data type: {type(data).__name__}")
-
-        self._update_metrics(time.perf_counter() - start)
-        return result
 
     def _process_tensor(self, data: Tensor) -> Tensor:
         """Apply top-down cognitive modulation to tensor input.

@@ -15,11 +15,10 @@ and somatotopic mapping.
 """
 
 from __future__ import annotations
-import time
 import numpy as np
 
 from ..node import BrainNode, NodeConfig
-from ..types import BrainData, Tensor, StateVector, Signal, Message
+from ..types import Tensor, StateVector, Signal
 
 
 class SomatosensoryPathwayNode(BrainNode):
@@ -83,30 +82,6 @@ class SomatosensoryPathwayNode(BrainNode):
                         )
 
         return body_map
-
-    def process(self, data: BrainData) -> BrainData:
-        """Process somatosensory input.
-
-        Args:
-            data: Input data (Tensor, StateVector, Signal, or Message)
-
-        Returns:
-            Somatosensory-processed output
-        """
-        start = time.perf_counter()
-        if isinstance(data, Tensor):
-            result: BrainData = self._process_tensor(data)
-        elif isinstance(data, StateVector):
-            result = self._process_state_vector(data)
-        elif isinstance(data, Signal):
-            result = self._process_signal(data)
-        elif isinstance(data, Message):
-            result = data
-        else:
-            raise ValueError(f"Unsupported data type: {type(data).__name__}")
-
-        self._update_metrics(time.perf_counter() - start)
-        return result
 
     def _process_tensor(self, data: Tensor) -> Tensor:
         """Process tensor through somatosensory pipeline.

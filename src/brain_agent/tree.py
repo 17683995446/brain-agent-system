@@ -196,11 +196,15 @@ class PassThroughBrainNode(BrainNode):
     """A pass-through brain node that simply returns input data unchanged.
 
     Used as the default node implementation during tree construction.
-    Phase 6 will replace this with specialized processing logic.
     """
 
-    def process(self, data: BrainData) -> BrainData:
-        """Pass data through without modification."""
+    def _process_tensor(self, data: BrainData) -> BrainData:
+        return data
+
+    def _process_state_vector(self, data: BrainData) -> BrainData:
+        return data
+
+    def _process_signal(self, data: BrainData) -> BrainData:
         return data
 
 

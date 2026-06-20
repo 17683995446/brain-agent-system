@@ -37,3 +37,6 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+
+# Brain system design docs (2047 DESIGN.md files, generated from JSON)
+L00_BrainSystem/

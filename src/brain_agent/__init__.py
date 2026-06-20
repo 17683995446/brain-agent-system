@@ -44,7 +44,12 @@ from .io import (
     create_exporter,
 )
 
-__version__ = "0.4.0"
+# Single source of truth: read version from package metadata
+try:
+    from importlib.metadata import version as _get_version
+    __version__ = _get_version("brain-agent-system")
+except Exception:
+    __version__ = "0.4.0"  # Fallback for development mode
 
 __all__ = [
     # Version

@@ -237,20 +237,9 @@ class ResultExporter:
         """
         states: Dict[int, Dict[str, Any]] = {}
         for node in tree.bfs_traverse():
-            states[node.node_id] = {
-                "node_id": node.node_id,
-                "short_name": node.short_name,
-                "layer": node.layer,
-                "process_count": node._process_count,
-                "last_process_time": node._last_process_time,
-                "total_process_time": node._total_process_time,
-                "avg_process_time": (
-                    node._total_process_time / node._process_count
-                    if node._process_count > 0 else 0.0
-                ),
-                "queue_length": len(node._input_queue),
-                "last_error": node._last_process_error,
-            }
+            metrics = node.get_metrics()
+            metrics["last_error"] = node.last_error
+            states[node.node_id] = metrics
         return states
 
     def save(self) -> None:

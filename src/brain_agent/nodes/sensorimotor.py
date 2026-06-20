@@ -11,11 +11,10 @@ motor plans and task context.
 """
 
 from __future__ import annotations
-import time
 import numpy as np
 
 from ..node import BrainNode, NodeConfig
-from ..types import BrainData, Tensor, StateVector, Signal, Message
+from ..types import Tensor, StateVector, Signal
 
 
 class SensorimotorSystemNode(BrainNode):
@@ -38,33 +37,6 @@ class SensorimotorSystemNode(BrainNode):
         self.set_state("gain_field", np.ones((32, 32), dtype=np.float32))
         self.set_state("task_gain", np.float32(1.0))
         self.set_state("motor_bias", np.zeros((1, 32, 32), dtype=np.float32))
-
-    def process(self, data: BrainData) -> BrainData:
-        """Integrate sensory input with motor output planning.
-
-        Apply gain control based on current task demands using numpy
-        tensor operations on 32x32x8 input.
-
-        Args:
-            data: Input data (Tensor, StateVector, Signal, or Message)
-
-        Returns:
-            Processed output with sensorimotor integration applied
-        """
-        start = time.perf_counter()
-        if isinstance(data, Tensor):
-            result: BrainData = self._process_tensor(data)
-        elif isinstance(data, StateVector):
-            result = self._process_state_vector(data)
-        elif isinstance(data, Signal):
-            result = self._process_signal(data)
-        elif isinstance(data, Message):
-            result = data
-        else:
-            raise ValueError(f"Unsupported data type: {type(data).__name__}")
-
-        self._update_metrics(time.perf_counter() - start)
-        return result
 
     def _process_tensor(self, data: Tensor) -> Tensor:
         """Apply sensorimotor integration to tensor input.

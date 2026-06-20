@@ -11,11 +11,10 @@ where optimal performance occurs at intermediate levels of neuromodulation.
 """
 
 from __future__ import annotations
-import time
 import numpy as np
 
 from ..node import BrainNode, NodeConfig
-from ..types import BrainData, Tensor, StateVector, Signal, Message
+from ..types import Tensor, StateVector, Signal
 
 
 class ModulationSystemNode(BrainNode):
@@ -41,32 +40,6 @@ class ModulationSystemNode(BrainNode):
         self.set_state("decay_rate", np.float32(0.1))
         self.set_state("optimal_level", np.float32(0.5))
         self.set_state("gain_width", np.float32(0.3))
-
-    def process(self, data: BrainData) -> BrainData:
-        """Compute neuromodulator release and apply gain modulation.
-
-        Signal[float32] operations.
-
-        Args:
-            data: Input data (Tensor, StateVector, Signal, or Message)
-
-        Returns:
-            Modulated output
-        """
-        start = time.perf_counter()
-        if isinstance(data, Tensor):
-            result: BrainData = self._process_tensor(data)
-        elif isinstance(data, StateVector):
-            result = self._process_state_vector(data)
-        elif isinstance(data, Signal):
-            result = self._process_signal(data)
-        elif isinstance(data, Message):
-            result = data
-        else:
-            raise ValueError(f"Unsupported data type: {type(data).__name__}")
-
-        self._update_metrics(time.perf_counter() - start)
-        return result
 
     def _compute_gain(self) -> np.float32:
         """Compute inverted-U gain function.

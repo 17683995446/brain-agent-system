@@ -265,7 +265,6 @@ class Message(BrainDataType):
     @property
     def nbytes(self) -> int:
         """Size in bytes (topic + payload JSON + timestamp)."""
-        import json
         payload_bytes = len(json.dumps(self.payload).encode('utf-8'))
         return len(self.topic.encode('utf-8')) + payload_bytes + 8
 

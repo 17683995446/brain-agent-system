@@ -18,11 +18,10 @@ phasic/tonic release mode switching.
 """
 
 from __future__ import annotations
-import time
 import numpy as np
 
 from ..node import BrainNode, NodeConfig
-from ..types import BrainData, Tensor, StateVector, Signal, Message
+from ..types import Tensor, StateVector, Signal
 
 
 class NoradrenalineSystemNode(BrainNode):
@@ -57,30 +56,6 @@ class NoradrenalineSystemNode(BrainNode):
         # Utility signals
         self.set_state("expected_utility", np.float32(0.5))
         self.set_state("outcome_history", [])
-
-    def process(self, data: BrainData) -> BrainData:
-        """Compute arousal and apply attention gain modulation.
-
-        Args:
-            data: Input data (Tensor, StateVector, Signal, or Message)
-
-        Returns:
-            Noradrenaline-modulated output
-        """
-        start = time.perf_counter()
-        if isinstance(data, Tensor):
-            result: BrainData = self._process_tensor(data)
-        elif isinstance(data, StateVector):
-            result = self._process_state_vector(data)
-        elif isinstance(data, Signal):
-            result = self._process_signal(data)
-        elif isinstance(data, Message):
-            result = data
-        else:
-            raise ValueError(f"Unsupported data type: {type(data).__name__}")
-
-        self._update_metrics(time.perf_counter() - start)
-        return result
 
     def _compute_arousal(self, salience: float) -> np.float32:
         """Compute arousal level from input salience.

@@ -1,11 +1,9 @@
-"""Generated nodes package - imports all layer modules."""
+"""Generated nodes package.
 
-from .layer_04 import *  # noqa: F401,F403
-from .layer_05 import *  # noqa: F401,F403
-from .layer_06 import *  # noqa: F401,F403
-from .layer_07 import *  # noqa: F401,F403
-from .layer_08 import *  # noqa: F401,F403
-from .layer_09 import *  # noqa: F401,F403
-from .layer_10 import *  # noqa: F401,F403
+All L04-L10 generated nodes are defined in generated_nodes.py.
+The GENERATED_NODE_MAP maps node_id to node class for the registry.
+"""
 
 from .generated_nodes import GENERATED_NODE_MAP
+
+__all__ = ["GENERATED_NODE_MAP"]

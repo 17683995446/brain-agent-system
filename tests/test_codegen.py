@@ -716,11 +716,11 @@ class TestProcessTemplates:
         expected_types = {"sensory", "motor", "memory", "modulation", "relay"}
         assert set(PROCESS_TEMPLATES.keys()) == expected_types
 
-    def test_templates_contain_process_method(self):
-        """Each template should contain a process method definition."""
+    def test_templates_contain_process_hooks(self):
+        """Each template should contain _process_* hook method definitions."""
         for region_type, template in PROCESS_TEMPLATES.items():
-            assert "def process(self, data: BrainData)" in template, (
-                f"Template for {region_type} missing process method"
+            assert "def _process_" in template, (
+                f"Template for {region_type} missing _process_ hook"
             )
 
     def test_sensory_template_uses_kernel(self):

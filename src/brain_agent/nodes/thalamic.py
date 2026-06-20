@@ -15,11 +15,10 @@ This node implements these core thalamic processing principles.
 """
 
 from __future__ import annotations
-import time
 import numpy as np
 
 from ..node import BrainNode, NodeConfig
-from ..types import BrainData, Tensor, StateVector, Signal, Message
+from ..types import Tensor, StateVector, Signal
 
 
 class ThalamicRelayStationNode(BrainNode):
@@ -46,30 +45,6 @@ class ThalamicRelayStationNode(BrainNode):
         self.set_state("trn_inhibition", np.float32(0.0))
         # Previous activity for burst detection
         self.set_state("prev_activity", np.float32(0.0))
-
-    def process(self, data: BrainData) -> BrainData:
-        """Relay and gate incoming signals.
-
-        Args:
-            data: Input data (Tensor, StateVector, Signal, or Message)
-
-        Returns:
-            Gated and relayed output
-        """
-        start = time.perf_counter()
-        if isinstance(data, Tensor):
-            result: BrainData = self._process_tensor(data)
-        elif isinstance(data, StateVector):
-            result = self._process_state_vector(data)
-        elif isinstance(data, Signal):
-            result = self._process_signal(data)
-        elif isinstance(data, Message):
-            result = data
-        else:
-            raise ValueError(f"Unsupported data type: {type(data).__name__}")
-
-        self._update_metrics(time.perf_counter() - start)
-        return result
 
     def _update_mode(self, input_salience: float) -> None:
         """Update burst/tonic mode based on arousal and input.

@@ -11,11 +11,10 @@ preferred directions. Force and velocity are governed by the size principle
 """
 
 from __future__ import annotations
-import time
 import numpy as np
 
 from ..node import BrainNode, NodeConfig
-from ..types import BrainData, Tensor, StateVector, Signal, Message
+from ..types import Tensor, StateVector, Signal
 
 
 class MotorPathwayNode(BrainNode):
@@ -56,32 +55,6 @@ class MotorPathwayNode(BrainNode):
                 dirs[i, j, 0] = np.cos(angle)
                 dirs[i, j, 1] = np.sin(angle)
         return dirs
-
-    def process(self, data: BrainData) -> BrainData:
-        """Convert motor plans to muscle activation patterns.
-
-        Apply force/velocity scaling to Tensor[float32, 1x32x32] operations.
-
-        Args:
-            data: Input data (Tensor, StateVector, Signal, or Message)
-
-        Returns:
-            Motor activation output
-        """
-        start = time.perf_counter()
-        if isinstance(data, Tensor):
-            result: BrainData = self._process_tensor(data)
-        elif isinstance(data, StateVector):
-            result = self._process_state_vector(data)
-        elif isinstance(data, Signal):
-            result = self._process_signal(data)
-        elif isinstance(data, Message):
-            result = data
-        else:
-            raise ValueError(f"Unsupported data type: {type(data).__name__}")
-
-        self._update_metrics(time.perf_counter() - start)
-        return result
 
     def _process_tensor(self, data: Tensor) -> Tensor:
         """Convert motor plan tensor to muscle activation pattern.
