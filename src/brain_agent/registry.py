@@ -23,7 +23,10 @@ def create_node(config: NodeConfig) -> BrainNode:
     """Create a node instance from its config, using the registry."""
     cls = get_node_class(config.node_id)
     if cls is None:
-        raise ValueError(f"No node class registered for node_id={config.node_id}")
+        raise ValueError(
+            f"No node class registered for node_id={config.node_id}. "
+            f"Register custom nodes via register_node(node_id, cls) or add to NODE_CLASS_MAP."
+        )
     return cls(config)
 
 

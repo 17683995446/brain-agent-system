@@ -203,7 +203,7 @@ class FileInput(InputAdapter):
         elif suffix == ".csv":
             self._load_csv()
         else:
-            raise ValueError(f"Unsupported input format: {suffix}")
+            raise ValueError(f"Unsupported input file format: '{suffix}'. Supported formats: .json, .npz, .csv.")
 
         logger.info(f"Loaded {len(self._data)} input samples from {self._path}")
 
@@ -238,7 +238,10 @@ class FileInput(InputAdapter):
                     timestamp=float(item.get("timestamp", i * self._dt)),
                 ))
             else:
-                raise ValueError(f"Unknown data type in JSON: {dtype}")
+                raise ValueError(
+                    f"Unknown data type in JSON: '{dtype}'. "
+                    f"Valid types: 'signal', 'tensor', 'state_vector', 'spike_train', 'message'."
+                )
 
     def _load_npz(self) -> None:
         """Load from NPZ file."""
@@ -353,4 +356,7 @@ def create_input(
     elif callable(source):
         return CallbackInput(source)
     else:
-        raise ValueError(f"Unsupported input source type: {type(source)}")
+        raise ValueError(
+            f"Unsupported input source type: {type(source).__name__}. "
+            f"Supported types: list, callable, str (file path), numpy ndarray, BrainData."
+        )

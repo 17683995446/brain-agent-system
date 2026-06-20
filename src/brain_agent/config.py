@@ -36,18 +36,31 @@ class BrainConfig:
         return cls({})
 
     def _apply_env_overrides(self) -> None:
-        """Apply environment variable overrides."""
+        """Apply environment variable overrides.
+
+        Environment variables use the prefix BRAIN_ followed by the
+        dot-separated config path with dots replaced by underscores.
+        For example, BRAIN_SIMULATION_DT_FAST maps to simulation.dt_fast.
+
+        The first underscore separates the top-level section (e.g., "simulation")
+        from the rest. The remaining part is used as-is (not split further),
+        preserving underscores in keys like "dt_fast".
+        """
         prefix = "BRAIN_"
         for key, value in os.environ.items():
-            if key.startswith(prefix):
-                config_key = key[len(prefix):].lower()
-                parts = config_key.split("_")
-                current = self._config
-                for part in parts[:-1]:
-                    if part not in current:
-                        current[part] = {}
-                    current = current[part]
-                current[parts[-1]] = self._parse_env_value(value)
+            if not key.startswith(prefix):
+                continue
+            config_key = key[len(prefix):].lower()
+            # Split only on the first underscore to get the section name.
+            # The rest is the key within that section (may contain underscores).
+            if "_" not in config_key:
+                # Single-word key, e.g., BRAIN_LOGLEVEL -> loglevel
+                self._config[config_key] = self._parse_env_value(value)
+                continue
+            section, _, sub_key = config_key.partition("_")
+            if section not in self._config or not isinstance(self._config[section], dict):
+                self._config[section] = {}
+            self._config[section][sub_key] = self._parse_env_value(value)
 
     def _parse_env_value(self, value: str) -> Any:
         """Parse environment variable value to appropriate type."""
@@ -98,6 +111,24 @@ class BrainConfig:
     def to_dict(self) -> Dict[str, Any]:
         """Return configuration as dictionary."""
         return self._config.copy()
+
+    def to_yaml(self) -> str:
+        """Serialize configuration to YAML string.
+
+        Returns:
+            YAML-formatted string of the configuration.
+        """
+        result: str = yaml.dump(self._config, default_flow_style=False, sort_keys=True)
+        return result
+
+    def save(self, path: str) -> None:
+        """Save configuration to a YAML file.
+
+        Args:
+            path: Output file path.
+        """
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(self.to_yaml())
 
     def validate(self) -> list:
         """Validate configuration values.

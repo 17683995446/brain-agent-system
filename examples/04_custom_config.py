@@ -30,10 +30,10 @@ def main():
           f"dt_slow={sched_config.dt_slow}s")
 
     sim = Simulation.from_json(config=sched_config)
-    print(f"  Medium ratio: {sim.scheduler._medium_ratio} "
-          f"(medium every {sim.scheduler._medium_ratio} fast steps)")
-    print(f"  Slow ratio: {sim.scheduler._slow_ratio} "
-          f"(slow every {sim.scheduler._slow_ratio} fast steps)")
+    print(f"  Medium ratio: {sim.scheduler.medium_ratio} "
+          f"(medium every {sim.scheduler.medium_ratio} fast steps)")
+    print(f"  Slow ratio: {sim.scheduler.slow_ratio} "
+          f"(slow every {sim.scheduler.slow_ratio} fast steps)")
 
     results = sim.run(steps=10)
     print(f"  Completed {len(results)} steps")
@@ -45,7 +45,7 @@ def main():
         dt_medium=0.005,
         dt_slow=0.05,
     ))
-    print(f"  dt_fast={sim2.scheduler._config.dt_fast}s")
+    print(f"  dt_fast={sched_config2.dt_fast}s")
     results = sim2.run(steps=5)
     print(f"  Completed {len(results)} steps")
 

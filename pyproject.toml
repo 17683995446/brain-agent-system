@@ -12,6 +12,9 @@ dependencies = [
     "numpy",
 ]
 
+[project.scripts]
+brain-agent = "brain_agent.main:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest",

@@ -55,7 +55,7 @@ class Tensor(BrainDataType):
         # Validate shape matches expected
         if self.data.shape != expected_shape:
             raise ValueError(
-                f"张量形状不匹配: 期望 {expected_shape}, 实际 {self.data.shape}"
+                f"Tensor shape mismatch: expected {expected_shape}, actual {self.data.shape}"
             )
 
     @classmethod
@@ -99,13 +99,14 @@ class StateVector(BrainDataType):
         # Validate that data is 1D
         if self.data.ndim != 1:
             raise ValueError(
-                f"状态向量必须是一维数组, 实际维度为 {self.data.ndim}D, 形状为 {self.data.shape}"
+                f"StateVector must be 1-dimensional, actual dimension is {self.data.ndim}D, "
+                f"shape is {self.data.shape}"
             )
 
         # Validate dimension matches expected
         if self.data.shape[0] != expected_dim:
             raise ValueError(
-                f"状态向量维度不匹配: 期望 {expected_dim}, 实际 {self.data.shape[0]}"
+                f"StateVector dimension mismatch: expected {expected_dim}, actual {self.data.shape[0]}"
             )
 
     @classmethod
@@ -169,34 +170,34 @@ class SpikeTrain(BrainDataType):
         # Validate 1D arrays
         if self.timestamps.ndim != 1:
             raise ValueError(
-                f"时间戳必须是一维数组, 实际维度为 {self.timestamps.ndim}D, "
-                f"形状为 {self.timestamps.shape}"
+                f"Timestamps must be 1-dimensional, actual dimension is {self.timestamps.ndim}D, "
+                f"shape is {self.timestamps.shape}"
             )
         if self.neuron_ids.ndim != 1:
             raise ValueError(
-                f"神经元ID必须是一维数组, 实际维度为 {self.neuron_ids.ndim}D, "
-                f"形状为 {self.neuron_ids.shape}"
+                f"Neuron IDs must be 1-dimensional, actual dimension is {self.neuron_ids.ndim}D, "
+                f"shape is {self.neuron_ids.shape}"
             )
 
         # Validate same length
         if len(self.timestamps) != len(self.neuron_ids):
             raise ValueError(
-                f"时间戳和神经元ID长度不匹配: "
-                f"时间戳长度={len(self.timestamps)}, 神经元ID长度={len(self.neuron_ids)}"
+                f"Timestamps and neuron IDs length mismatch: "
+                f"timestamps length={len(self.timestamps)}, neuron IDs length={len(self.neuron_ids)}"
             )
 
         # Validate duration is non-negative
         if self.duration < 0:
             raise ValueError(
-                f"持续时间不能为负数, 实际值: {self.duration}"
+                f"Duration cannot be negative, actual value: {self.duration}"
             )
 
         # Validate timestamps are within duration
         if len(self.timestamps) > 0:
             if np.any(self.timestamps < 0) or np.any(self.timestamps > self.duration):
                 raise ValueError(
-                    f"时间戳必须在 [0, {self.duration}] 范围内, "
-                    f"实际范围: [{self.timestamps.min()}, {self.timestamps.max()}]"
+                    f"Timestamps must be within [0, {self.duration}], "
+                    f"actual range: [{self.timestamps.min()}, {self.timestamps.max()}]"
                 )
 
     @classmethod

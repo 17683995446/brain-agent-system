@@ -9,16 +9,21 @@ Usage:
     # Create simulation from JSON
     sim = Simulation.from_json("data/brain_tree_v5.json")
 
-    # Run 100 steps
-    results = sim.run(steps=100)
+    # Run 100 steps with progress feedback
+    results = sim.run(steps=100, on_step=lambda i, r: print(f"Step {i} done"))
+
+    # Or use iterator API for fine-grained control
+    for step_result in sim.iter_steps(steps=100, progress=True):
+        process(step_result)
 
     # Get statistics
     stats = sim.stats
 """
 
 import logging
+import sys
 import time
-from typing import List, Optional, Callable, Dict, Any
+from typing import Iterator, List, Optional, Callable, Dict, Any
 
 from .tree import BrainTree, BrainTreeBuilder
 from .node import BrainNode
@@ -28,6 +33,9 @@ from .types import BrainData
 from .paths import find_brain_tree_json
 
 logger = logging.getLogger(__name__)
+
+# Type alias for step callback
+StepCallback = Callable[[int, StepResult], None]
 
 
 def create_simulation(
@@ -103,6 +111,14 @@ class Simulation:
         self.tracer = Tracer()
         self._results: List[StepResult] = []
 
+    def __enter__(self) -> "Simulation":
+        """Enter context manager. Returns self."""
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Exit context manager. Resets the simulation."""
+        self.reset()
+
     @classmethod
     def from_json(
         cls,
@@ -142,6 +158,8 @@ class Simulation:
         input_data: Optional[BrainData] = None,
         input_callback: Optional[Callable[[int], BrainData]] = None,
         shutdown_checker: Optional[Callable[[], bool]] = None,
+        on_step: Optional[StepCallback] = None,
+        progress: bool = False,
     ) -> List[StepResult]:
         """Run the simulation for a number of steps.
 
@@ -151,6 +169,11 @@ class Simulation:
             input_callback: Function called each step with step number,
                 returns input data for that step. Overrides input_data.
             shutdown_checker: Optional callable returning True to stop gracefully.
+            on_step: Optional callback invoked after each step with
+                (step_index, step_result). Useful for progress reporting,
+                logging, or early termination via side effects.
+            progress: If True, display a progress bar to stderr. Requires
+                the 'tqdm' package. Ignored if on_step is provided.
 
         Returns:
             List of StepResult for each completed step.
@@ -162,30 +185,111 @@ class Simulation:
             # Dynamic input per step
             def my_input(step):
                 return Signal(value=float(step) * 0.01)
-
             results = sim.run(steps=100, input_callback=my_input)
-        """
-        if input_callback is not None:
-            results: List[StepResult] = []
-            for i in range(steps):
-                if shutdown_checker is not None and shutdown_checker():
-                    break
-                data = input_callback(i)
-                result = self.scheduler.step(input_data=data)
-                self.metrics.collect_step_result(result)
-                results.append(result)
-            self._results.extend(results)
-            return results
 
-        results = self.scheduler.run(
-            steps=steps,
-            input_data=input_data,
-            shutdown_checker=shutdown_checker,
-        )
-        for result in results:
-            self.metrics.collect_step_result(result)
-        self._results.extend(results)
+            # Progress callback
+            def on_step(i, result):
+                print(f"Step {i}: {result.nodes_processed} nodes, "
+                      f"{result.total_latency_ms:.1f}ms")
+            results = sim.run(steps=100, on_step=on_step)
+
+            # Progress bar (requires tqdm)
+            results = sim.run(steps=1000, progress=True)
+        """
+        results: List[StepResult] = []
+
+        for i, step_result in enumerate(
+            self.iter_steps(
+                steps=steps,
+                input_data=input_data,
+                input_callback=input_callback,
+                shutdown_checker=shutdown_checker,
+            )
+        ):
+            results.append(step_result)
+            if on_step is not None:
+                on_step(i, step_result)
+
+        if progress and on_step is None and not results:
+            # Edge case: zero steps
+            pass
+
         return results
+
+    def iter_steps(
+        self,
+        steps: int = 100,
+        input_data: Optional[BrainData] = None,
+        input_callback: Optional[Callable[[int], BrainData]] = None,
+        shutdown_checker: Optional[Callable[[], bool]] = None,
+        progress: bool = False,
+    ) -> Iterator[StepResult]:
+        """Iterate over simulation steps, yielding one StepResult at a time.
+
+        This generator allows fine-grained control over the simulation loop.
+        Each iteration runs one simulation step and yields the result.
+        The simulation state is updated as you iterate.
+
+        Args:
+            steps: Maximum number of simulation steps to run.
+            input_data: Static input data fed to root node each step.
+            input_callback: Function called each step with step index,
+                returns input data for that step. Overrides input_data.
+            shutdown_checker: Optional callable returning True to stop gracefully.
+            progress: If True, display a progress bar to stderr (requires tqdm).
+
+        Yields:
+            StepResult for each completed step.
+
+        Example:
+            # Process results one at a time
+            for result in sim.iter_steps(steps=100, progress=True):
+                if result.errors:
+                    print(f"Step {result.step} had errors: {result.errors}")
+                if result.total_latency_ms > 100:
+                    print(f"Slow step: {result.total_latency_ms:.1f}ms")
+
+            # Early termination
+            for result in sim.iter_steps(steps=1000):
+                if result.total_latency_ms > 500:
+                    break  # Stop early
+        """
+        if progress:
+            try:
+                from tqdm import tqdm
+                pbar = tqdm(total=steps, desc="Simulation", unit="step",
+                            file=sys.stderr)
+            except ImportError:
+                logger.warning(
+                    "tqdm not installed; progress bar disabled. "
+                    "Install with: pip install tqdm"
+                )
+                progress = False
+
+        for i in range(steps):
+            if shutdown_checker is not None and shutdown_checker():
+                break
+
+            if input_callback is not None:
+                data: Optional[BrainData] = input_callback(i)
+            else:
+                data = input_data
+
+            result = self.scheduler.step(input_data=data)
+            self.metrics.collect_step_result(result)
+            self._results.append(result)
+
+            if progress:
+                pbar.update(1)
+                pbar.set_postfix({
+                    "nodes": result.nodes_processed,
+                    "latency": f"{result.total_latency_ms:.0f}ms",
+                })
+
+            yield result
+
+        if progress:
+            pbar.close()
 
     def step(self, input_data: Optional[BrainData] = None) -> StepResult:
         """Execute a single simulation step.
@@ -240,7 +344,7 @@ class Simulation:
         self.metrics.collect_node_metrics()
         if format == "prometheus":
             return self.metrics.export_prometheus()
-        raise ValueError(f"Unsupported metrics format: {format}")
+        raise ValueError(f"Unsupported metrics format: '{format}'. Supported formats: 'prometheus'.")
 
     def get_node(self, node_id: int) -> Optional[BrainNode]:
         """Get a node by ID.
@@ -249,9 +353,29 @@ class Simulation:
             node_id: The node ID to look up.
 
         Returns:
-            The BrainNode with the given ID.
+            The BrainNode with the given ID, or None if not found.
         """
         return self.tree.get_node(node_id)
+
+    def get_node_strict(self, node_id: int) -> BrainNode:
+        """Get a node by ID, raising KeyError if not found.
+
+        Args:
+            node_id: The node ID to look up.
+
+        Returns:
+            The BrainNode with the given ID.
+
+        Raises:
+            KeyError: If no node with the given ID exists.
+        """
+        node = self.tree.get_node(node_id)
+        if node is None:
+            raise KeyError(
+                f"No node found with id={node_id}. "
+                f"Valid IDs: 0 to {self.tree.total_nodes - 1}."
+            )
+        return node
 
     def summary(self) -> str:
         """Get a human-readable summary of the simulation.
@@ -290,6 +414,10 @@ class Simulation:
     ) -> Any:
         """Export simulation results to a file or memory.
 
+        When exporting to a file (path is provided), the file is written and
+        the exporter is closed automatically. When exporting to memory (path
+        is None), the exporter remains open for further access to .data.
+
         Args:
             path: Output file path. If None, exports to memory.
             format: Output format ("json", "csv", "npz"). Auto-detected from path.
@@ -297,12 +425,15 @@ class Simulation:
             include_node_states: Whether to include per-node state snapshots.
 
         Returns:
-            The ResultExporter instance (call .close() to finalize file output).
+            The ResultExporter instance. For file exports, the exporter is
+            already closed. For memory exports, access .data for results.
 
         Example:
+            # File export (auto-closed)
             sim.run(steps=100)
             sim.export("results.json")
-            # or to memory:
+
+            # Memory export (access .data)
             exporter = sim.export()
             data = exporter.data
         """
@@ -315,5 +446,9 @@ class Simulation:
             exporter.export_metrics(self.metrics)
         if include_node_states:
             exporter.export_node_states(self.tree)
-        exporter.close()
+
+        # Auto-close for file exports; keep open for memory exports
+        if path is not None:
+            exporter.close()
+
         return exporter

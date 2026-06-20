@@ -44,6 +44,9 @@ from .io import (
     create_exporter,
 )
 
+# Testing utilities (importable as brain_agent.testing)
+from . import testing as testing  # noqa: F401
+
 # Single source of truth: read version from package metadata
 try:
     from importlib.metadata import version as _get_version

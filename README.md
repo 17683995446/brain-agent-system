@@ -28,22 +28,37 @@ sim.export("results.json")         # 导出结果
 
 ### 命令行运行
 
+安装后提供 `brain-agent` 命令，采用子命令结构：
+
 ```bash
-# 基本运行
-python -m brain_agent.main --steps 100
+# 运行仿真
+brain-agent run --steps 100
 
-# 使用自定义配置
-python -m brain_agent.main --config configs/default.yaml --steps 100
+# 运行并导出结果
+brain-agent run --steps 100 --export results.json
 
-# 导出结果到JSON
-python -m brain_agent.main --steps 100 --export results.json
+# 使用自定义配置与 JSON
+brain-agent run --config configs/default.yaml --json data/brain_tree_v5.json --steps 100
 
 # 导出指标到文件
-python -m brain_agent.main --steps 100 --output metrics.txt
+brain-agent run --steps 100 --output metrics.txt
 
-# 禁用HTTP服务
-python -m brain_agent.main --steps 100 --no-server
+# 禁用 HTTP 服务
+brain-agent run --steps 100 --no-server
+
+# 查看系统信息（版本、配置、脑树统计）
+brain-agent info
+
+# 校验脑树 JSON 文件
+brain-agent validate
+
+# 查看版本
+brain-agent --version
 ```
+
+通用参数（适用于所有子命令）：`--json`（脑树 JSON 路径，默认自动发现）、`--config`（YAML 配置文件）、`--log-level`、`--json-logs`、`--log-file`。
+
+> 仍可通过 `python -m brain_agent.main <subcommand>` 调用，例如 `python -m brain_agent.main run --steps 100`。
 
 ### 自定义输入数据
 
@@ -102,7 +117,39 @@ python examples/04_custom_config.py
 
 # 文件I/O
 python examples/05_file_io.py
+
+# 自定义节点实现
+python examples/06_custom_node.py
+
+# 批量实验与参数扫描
+python examples/07_experiment_sweep.py
 ```
+
+## 自定义节点
+
+编写自定义节点时，继承 `BrainNode` 并覆盖类型相关的 `_process_*` 钩子即可。基类 `process()` 是模板方法，自动处理计时、指标收集与类型分发，因此只需实现业务逻辑：
+
+- `_process_tensor(data: Tensor)` —— 处理张量输入
+- `_process_state_vector(data: StateVector)` —— 处理状态向量输入
+- `_process_signal(data: Signal)` —— 处理标量信号输入
+- `_process_message(data: Message)` —— 处理消息输入（默认 pass-through）
+
+使用 `get_state()` / `set_state()` 维护节点内部状态。
+
+```python
+from brain_agent import BrainNode
+from brain_agent.types import BrainData, Signal
+
+class ThresholdNode(BrainNode):
+    def _process_signal(self, data: BrainData) -> BrainData:
+        threshold = self.get_state("threshold", 0.5)
+        gain = self.get_state("gain", 2.0)
+        if data.value < threshold:
+            return Signal(value=0.0, timestamp=data.timestamp)
+        return Signal(value=data.value * gain, timestamp=data.timestamp)
+```
+
+完整教程（含 `ThresholdNode`、`AccumulatorNode` 及在小型仿真树中使用自定义节点）见 [examples/06_custom_node.py](examples/06_custom_node.py)。测试工具（`make_node_config`、`build_small_tree` 等）见 [docs/api.md](docs/api.md#测试工具)。
 
 ## 配置说明
 
@@ -131,9 +178,9 @@ config = SchedulerConfig(dt_fast=0.002, dt_medium=0.01, dt_slow=0.05)
 sim = Simulation.from_json(config=config)
 ```
 
-环境变量覆盖（`BRAIN_` 前缀）：
+环境变量覆盖（`BRAIN_` 前缀，格式 `BRAIN_SECTION_KEY`）：
 ```bash
-BRAIN_SIMULATION_DT_FAST=0.002 python -m brain_agent.main --steps 100
+BRAIN_SIMULATION_DT_FAST=0.002 brain-agent run --steps 100
 ```
 
 ## 架构
@@ -181,13 +228,14 @@ BrainAgentSystem/
 │   ├── lifecycle.py            # 优雅关闭
 │   ├── codegen.py              # 节点代码生成器（构建期工具）
 │   ├── experiment.py           # 批量实验框架
+│   ├── testing.py              # 测试工具（MockNode、build_small_tree 等）
 │   ├── io/                     # 数据I/O
 │   │   ├── input.py            # 输入适配器（JSON/NPZ/CSV/数组/回调）
 │   │   └── output.py           # 结果导出器（JSON/CSV/NPZ）
 │   ├── nodes/                  # 手写核心节点（15个脑区）
 │   ├── generated/              # 自动生成的节点（2032个，单一文件）
 │   └── monitoring/             # 监控与可观测性
-├── examples/                   # 使用示例（5个）
+├── examples/                   # 使用示例（7个）
 ├── configs/                    # 配置文件
 ├── docs/                       # 文档
 │   ├── api.md                  # API参考
@@ -211,6 +259,79 @@ mypy src/brain_agent/
 
 # 代码风格检查
 flake8 src/brain_agent/ --max-line-length=120
+```
+
+## FAQ / 常见问题
+
+### brain_tree_v5.json 在哪里？
+
+默认自动发现。`Simulation.from_json()` 和 CLI 会按以下顺序查找 `brain_tree_v5.json`：显式传入的路径 -> `BRAIN_JSON_PATH` 环境变量 -> 包安装目录下的 `data/` -> 当前工作目录。若找不到，可显式指定：
+
+```bash
+# 环境变量
+export BRAIN_JSON_PATH=/path/to/brain_tree_v5.json
+
+# CLI 参数
+brain-agent run --json /path/to/brain_tree_v5.json --steps 100
+
+# Python API
+sim = Simulation.from_json("/path/to/brain_tree_v5.json")
+```
+
+### 如何编写自定义节点？
+
+继承 `BrainNode` 并覆盖 `_process_*` 钩子（`_process_tensor`、`_process_signal`、`_process_state_vector`、`_process_message`）。基类 `process()` 模板方法会自动处理计时、指标与类型分发，因此只需实现业务逻辑。完整示例见 [examples/06_custom_node.py](examples/06_custom_node.py)，详见上方的 [自定义节点](#自定义节点) 章节。
+
+### 仿真似乎卡住了？
+
+`Simulation.run()` 默认会运行完所有步数后才返回，长步数时看起来像“卡住”。请使用以下方式获取进度反馈：
+
+```python
+# 方法1: on_step 回调
+def on_step(i, result):
+    print(f"Step {i}/{total}: {result.nodes_processed} nodes")
+sim.run(steps=10000, on_step=on_step)
+
+# 方法2: tqdm 进度条（需 pip install tqdm）
+sim.run(steps=10000, progress=True)
+
+# 方法3: 生成器 API，逐步处理
+for result in sim.iter_steps(steps=10000, progress=True):
+    if result.total_latency_ms > 500:
+        break  # 可提前终止
+```
+
+### 如何修改仿真频率？
+
+通过 `SchedulerConfig` 或 YAML 配置修改三个频段的时间步长：
+
+```python
+from brain_agent import SchedulerConfig, Simulation
+
+config = SchedulerConfig(dt_fast=0.002, dt_medium=0.01, dt_slow=0.05)
+sim = Simulation.from_json(config=config)
+```
+
+或使用 YAML（`configs/default.yaml` 的 `simulation` 段）：
+
+```yaml
+simulation:
+  dt_fast: 0.002
+  dt_medium: 0.01
+  dt_slow: 0.05
+```
+
+### 环境变量不生效？
+
+环境变量使用 `BRAIN_` 前缀，格式为 `BRAIN_SECTION_KEY`。第一个下划线分隔顶层 section，其余部分作为该 section 内的键（**保留键中的下划线**）。例如 `BRAIN_SIMULATION_DT_FAST` 映射到 `simulation.dt_fast`，而不是 `simulation.dt.fast`。
+
+```bash
+# 正确
+BRAIN_SIMULATION_DT_FAST=0.002 brain-agent run --steps 100
+BRAIN_MONITORING_METRICS_PORT=9091 brain-agent run --steps 100
+
+# 错误（下划线不会被进一步拆分）
+BRAIN_SIMULATION_DT_FAST=0.002  # 不要写成 BRAIN_SIMULATION_DT_FAST 期望拆成 dt.fast
 ```
 
 ## 许可证

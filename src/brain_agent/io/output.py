@@ -82,7 +82,10 @@ class FileOutput(OutputAdapter):
         elif self._format == "npz":
             self._flush_npz()
         else:
-            raise ValueError(f"Unsupported output format: {self._format}")
+            raise ValueError(
+                f"Unsupported output format: '{self._format}'. "
+                f"Supported formats: 'json', 'csv', 'npz', 'memory'."
+            )
 
     def _flush_json(self) -> None:
         """Write buffer as JSON."""
@@ -198,6 +201,14 @@ class ResultExporter:
         self._results: List[StepResult] = []
         self._metrics_str: Optional[str] = None
         self._trace_str: Optional[str] = None
+
+    def __enter__(self) -> "ResultExporter":
+        """Enter context manager. Returns self."""
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Exit context manager. Closes the exporter."""
+        self.close()
 
     def export_results(self, results: List[StepResult]) -> None:
         """Export simulation step results.

@@ -73,7 +73,7 @@ class TestTensor:
     def test_shape_mismatch_raises_value_error(self):
         """Tensor should raise ValueError when data shape doesn't match expected."""
         data = np.ones((3, 3), dtype=np.float32)
-        with pytest.raises(ValueError, match="张量形状不匹配"):
+        with pytest.raises(ValueError, match="Tensor shape mismatch"):
             Tensor(data=data, shape=(2, 2))
 
     def test_nbytes_property(self):
@@ -143,13 +143,13 @@ class TestStateVector:
     def test_dimension_mismatch_raises_value_error(self):
         """StateVector should raise ValueError when dimension doesn't match."""
         data = np.zeros(10, dtype=np.float32)
-        with pytest.raises(ValueError, match="状态向量维度不匹配"):
+        with pytest.raises(ValueError, match="StateVector dimension mismatch"):
             StateVector(data=data, dimension=20)
 
     def test_non_1d_raises_value_error(self):
         """StateVector should raise ValueError when data is not 1D."""
         data = np.ones((3, 3), dtype=np.float32)
-        with pytest.raises(ValueError, match="状态向量必须是一维数组"):
+        with pytest.raises(ValueError, match="StateVector must be 1-dimensional"):
             StateVector(data=data)
 
     def test_normalize_unit_vector(self):
@@ -247,26 +247,26 @@ class TestSpikeTrain:
         """SpikeTrain should raise ValueError when timestamps and neuron_ids differ in length."""
         timestamps = np.array([0.1, 0.2], dtype=np.float64)
         neuron_ids = np.array([1], dtype=np.int64)
-        with pytest.raises(ValueError, match="时间戳和神经元ID长度不匹配"):
+        with pytest.raises(ValueError, match="Timestamps and neuron IDs length mismatch"):
             SpikeTrain(timestamps=timestamps, neuron_ids=neuron_ids, duration=1.0)
 
     def test_negative_duration_raises_value_error(self):
         """SpikeTrain should raise ValueError when duration is negative."""
-        with pytest.raises(ValueError, match="持续时间不能为负数"):
+        with pytest.raises(ValueError, match="Duration cannot be negative"):
             SpikeTrain.empty(duration=-1.0)
 
     def test_timestamp_out_of_range_raises_value_error(self):
         """SpikeTrain should raise ValueError when a timestamp is outside [0, duration]."""
         timestamps = np.array([0.1, 1.5], dtype=np.float64)
         neuron_ids = np.array([1, 2], dtype=np.int64)
-        with pytest.raises(ValueError, match="时间戳必须在"):
+        with pytest.raises(ValueError, match="Timestamps must be within"):
             SpikeTrain(timestamps=timestamps, neuron_ids=neuron_ids, duration=1.0)
 
     def test_negative_timestamp_raises_value_error(self):
         """SpikeTrain should raise ValueError when a timestamp is negative."""
         timestamps = np.array([-0.1, 0.5], dtype=np.float64)
         neuron_ids = np.array([1, 2], dtype=np.int64)
-        with pytest.raises(ValueError, match="时间戳必须在"):
+        with pytest.raises(ValueError, match="Timestamps must be within"):
             SpikeTrain(timestamps=timestamps, neuron_ids=neuron_ids, duration=1.0)
 
     def test_frozen_immutability(self):
@@ -436,59 +436,59 @@ class TestTypeValidationErrors:
     def test_tensor_wrong_shape_1d_vs_2d(self):
         """Tensor should reject 1D data when 2D shape is expected."""
         data = np.array([1.0, 2.0, 3.0], dtype=np.float32)
-        with pytest.raises(ValueError, match="张量形状不匹配"):
+        with pytest.raises(ValueError, match="Tensor shape mismatch"):
             Tensor(data=data, shape=(3, 1))
 
     def test_tensor_wrong_shape_size_mismatch(self):
         """Tensor should reject data with wrong total element count."""
         data = np.ones((10,), dtype=np.float32)
-        with pytest.raises(ValueError, match="张量形状不匹配"):
+        with pytest.raises(ValueError, match="Tensor shape mismatch"):
             Tensor(data=data, shape=(5,))
 
     def test_state_vector_2d_input_raises(self):
         """StateVector should reject 2D array input."""
         data = np.ones((5, 5), dtype=np.float32)
-        with pytest.raises(ValueError, match="状态向量必须是一维数组"):
+        with pytest.raises(ValueError, match="StateVector must be 1-dimensional"):
             StateVector(data=data)
 
     def test_state_vector_3d_input_raises(self):
         """StateVector should reject 3D array input."""
         data = np.ones((2, 3, 4), dtype=np.float32)
-        with pytest.raises(ValueError, match="状态向量必须是一维数组"):
+        with pytest.raises(ValueError, match="StateVector must be 1-dimensional"):
             StateVector(data=data)
 
     def test_state_vector_dimension_mismatch(self):
         """StateVector should reject when data length differs from expected dimension."""
         data = np.zeros(50, dtype=np.float32)
-        with pytest.raises(ValueError, match="状态向量维度不匹配"):
+        with pytest.raises(ValueError, match="StateVector dimension mismatch"):
             StateVector(data=data, dimension=100)
 
     def test_spike_train_mismatched_lengths(self):
         """SpikeTrain should reject when timestamps and neuron_ids have different lengths."""
         timestamps = np.array([0.1, 0.2, 0.3], dtype=np.float64)
         neuron_ids = np.array([1, 2], dtype=np.int64)
-        with pytest.raises(ValueError, match="时间戳和神经元ID长度不匹配"):
+        with pytest.raises(ValueError, match="Timestamps and neuron IDs length mismatch"):
             SpikeTrain(timestamps=timestamps, neuron_ids=neuron_ids, duration=1.0)
 
     def test_spike_train_negative_duration(self):
         """SpikeTrain should reject negative duration."""
         timestamps = np.array([0.1], dtype=np.float64)
         neuron_ids = np.array([1], dtype=np.int64)
-        with pytest.raises(ValueError, match="持续时间不能为负数"):
+        with pytest.raises(ValueError, match="Duration cannot be negative"):
             SpikeTrain(timestamps=timestamps, neuron_ids=neuron_ids, duration=-0.5)
 
     def test_spike_train_timestamp_exceeds_duration(self):
         """SpikeTrain should reject timestamps beyond the duration."""
         timestamps = np.array([0.5, 1.5], dtype=np.float64)
         neuron_ids = np.array([1, 2], dtype=np.int64)
-        with pytest.raises(ValueError, match="时间戳必须在"):
+        with pytest.raises(ValueError, match="Timestamps must be within"):
             SpikeTrain(timestamps=timestamps, neuron_ids=neuron_ids, duration=1.0)
 
     def test_spike_train_negative_timestamp(self):
         """SpikeTrain should reject negative timestamps."""
         timestamps = np.array([-0.01, 0.5], dtype=np.float64)
         neuron_ids = np.array([1, 2], dtype=np.int64)
-        with pytest.raises(ValueError, match="时间戳必须在"):
+        with pytest.raises(ValueError, match="Timestamps must be within"):
             SpikeTrain(timestamps=timestamps, neuron_ids=neuron_ids, duration=1.0)
 
 

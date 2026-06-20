@@ -65,7 +65,10 @@ class BrainSystemNode(BrainNode):
         elif isinstance(data, Message):
             result = data  # Pass through control messages unchanged
         else:
-            raise ValueError(f"Unsupported data type: {type(data).__name__}")
+            raise ValueError(
+                f"Unsupported data type: {type(data).__name__}. "
+                f"Supported types: Tensor, StateVector, Signal, Message."
+            )
 
         self._update_metrics(time.perf_counter() - start)
         return result

@@ -1,9 +1,9 @@
 # BrainAgentSystem 类型系统文档
 
-> 本文档描述 BrainAgentSystem 的核心数据类型系统，包括所有 BrainDataType 子类、序列化/反序列化机制、以及零拷贝传输接口。
+> 本文档描述 BrainAgentSystem 的核心数据类型系统，包括所有 BrainDataType 子类、序列化/反序列化机制、以及工具函数。
 >
 > 版本: v1.0
-> 最后更新: 2026-06-04
+> 最后更新: 2026-06-20
 
 ---
 
@@ -19,9 +19,8 @@
    - [Message](#message)
 4. [类型别名](#类型别名)
 5. [序列化与反序列化](#序列化与反序列化)
-6. [零拷贝传输](#零拷贝传输)
-7. [工具函数](#工具函数)
-8. [使用示例](#使用示例)
+6. [工具函数](#工具函数)
+7. [使用示例](#使用示例)
 
 ---
 
@@ -34,7 +33,6 @@ BrainAgentSystem 的类型系统基于以下设计原则：
 - **严格的构造时验证**: 形状、维度、数据类型在构造时自动验证
 - **统一的 nbytes 接口**: 所有类型实现 `nbytes` 属性，支持内存占用统计
 - **序列化支持**: 所有类型支持 dict/JSON 序列化，便于网络传输
-- **零拷贝传输**: 提供 `BufferView` + `SharedMemoryTransport` 接口，避免数据复制
 
 ---
 
@@ -245,43 +243,6 @@ t_back2 = from_json(json_str)
 
 ---
 
-## 零拷贝传输
-
-### BufferView
-
-描述共享缓冲区中的一个数据区域：
-
-```python
-@dataclass(frozen=True)
-class BufferView:
-    buffer_id: str   # 缓冲区标识
-    offset: int      # 字节偏移量
-    size: int        # 字节大小
-    dtype: str       # numpy 数据类型
-    shape: Tuple[int, ...]  # 数组形状
-```
-
-### SharedMemoryTransport
-
-提供 `send` 和 `receive` 方法，支持所有 BrainDataType：
-
-```python
-from brain_agent.transport import SharedMemoryTransport
-from brain_agent.types import Tensor
-
-transport = SharedMemoryTransport(buffer_capacity=1024 * 1024)
-
-# 发送数据到共享缓冲区
-original = Tensor.random((100, 100))
-view = transport.send(original, buffer_id="buf1")
-
-# 从共享缓冲区接收数据
-received = transport.receive(view, "Tensor")
-assert received.shape == original.shape
-```
-
----
-
 ## 工具函数
 
 ### `get_type_name(data: BrainData) -> str`
@@ -320,7 +281,6 @@ from brain_agent.types import (
     Tensor, StateVector, SpikeTrain, Signal, Message,
     serialize, deserialize, to_json, from_json,
 )
-from brain_agent.transport import SharedMemoryTransport
 
 # 1. 创建各种类型的数据
 visual_input = Tensor.random((1, 3, 224, 224))
@@ -339,11 +299,9 @@ json_data = to_json(visual_input)
 # 3. 在接收端反序列化
 received = from_json(json_data)
 
-# 4. 使用零拷贝传输在节点间共享数据
-transport = SharedMemoryTransport()
-view = transport.send(memory_state, buffer_id="shared_mem")
-# ... 另一个节点 ...
-shared_state = transport.receive(view, "StateVector")
+# 4. 节点间通过 process() 处理并传递数据
+#    （节点内部使用上述类型，无需额外的传输层）
+processed = some_node.process(memory_state)
 ```
 
 ---
@@ -363,8 +321,5 @@ shared_state = transport.receive(view, "StateVector")
 | `TestTypeValidationErrors` | 10 | 各类型的错误输入验证 |
 | `TestBrainDataType` | 2 | 抽象基类 nbytes、子类实现检查 |
 | `TestSerialization` | 14 | serialize、deserialize、to_json、from_json |
-| `TestBufferView` | 4 | BufferView 创建、dict 转换 |
-| `TestZeroCopyBuffer` | 7 | 分配、读写、越界、reset |
-| `TestSharedMemoryTransport` | 10 | send/receive 所有类型、多缓冲区 |
 
-**总计: 104 个测试**
+**总计: 83 个测试**

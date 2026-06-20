@@ -354,7 +354,10 @@ class BrainNode(ABC):
         elif isinstance(data, Message):
             result = self._process_message(data)
         else:
-            raise ValueError(f"Unsupported data type: {type(data).__name__}")
+            raise ValueError(
+                f"Unsupported data type: {type(data).__name__}. "
+                f"Supported types: Tensor, StateVector, Signal, Message, SpikeTrain."
+            )
 
         self._update_metrics(time.perf_counter() - start)
         return result
@@ -365,7 +368,8 @@ class BrainNode(ABC):
         Override in subclasses to implement tensor-specific logic.
         """
         raise NotImplementedError(
-            f"{self.__class__.__name__} does not implement _process_tensor"
+            f"{self.__class__.__name__} does not implement _process_tensor(). "
+            f"Override this method to handle Tensor input, or override process() for custom dispatch."
         )
 
     def _process_state_vector(self, data: StateVector) -> BrainData:
@@ -374,7 +378,8 @@ class BrainNode(ABC):
         Override in subclasses to implement state-vector-specific logic.
         """
         raise NotImplementedError(
-            f"{self.__class__.__name__} does not implement _process_state_vector"
+            f"{self.__class__.__name__} does not implement _process_state_vector(). "
+            f"Override this method to handle StateVector input, or override process() for custom dispatch."
         )
 
     def _process_signal(self, data: Signal) -> BrainData:
@@ -383,7 +388,8 @@ class BrainNode(ABC):
         Override in subclasses to implement signal-specific logic.
         """
         raise NotImplementedError(
-            f"{self.__class__.__name__} does not implement _process_signal"
+            f"{self.__class__.__name__} does not implement _process_signal(). "
+            f"Override this method to handle Signal input, or override process() for custom dispatch."
         )
 
     def _process_message(self, data: Message) -> BrainData:

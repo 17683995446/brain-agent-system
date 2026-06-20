@@ -300,7 +300,7 @@ class BrainTreeBuilder:
 
         nodes_data = data.get("nodes", [])
         if not nodes_data:
-            raise ValueError("JSON file contains no nodes")
+            raise ValueError(f"JSON file contains no nodes: {json_path}")
 
         # Phase 1: Build NodeConfig for each node
         for node_data in nodes_data:
