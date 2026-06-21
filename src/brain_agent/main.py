@@ -24,7 +24,7 @@ from .lifecycle import GracefulShutdown
 from .config import BrainConfig
 from .paths import find_brain_tree_json
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 try:
     from importlib.metadata import version as _get_version
     __version__ = _get_version("brain-agent-system")

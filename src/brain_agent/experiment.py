@@ -25,7 +25,7 @@ import random
 import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, Literal
 
 import numpy as np
 
@@ -195,7 +195,7 @@ class Experiment:
         logger.info(f"Checkpoint saved to: {path}")
         return path
 
-    def export(self, path: Optional[str] = None, format: str = "json") -> str:
+    def export(self, path: Optional[str] = None, format: Literal["json", "csv", "npz"] = "json") -> str:
         """Export experiment results.
 
         Args:

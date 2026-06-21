@@ -54,4 +54,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:9090/health || exit 1
 
 # Default command: run the simulation server
-CMD ["python", "-m", "brain_agent.main", "--steps", "0"]
+CMD ["brain-agent", "run", "--steps", "0"]

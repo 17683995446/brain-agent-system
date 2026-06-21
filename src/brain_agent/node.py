@@ -8,7 +8,7 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Tuple, Type
 from collections import deque
 import time
 import logging
@@ -65,7 +65,7 @@ class PortSpec:
     """Input/output port specification."""
     port_id: str
     name: str
-    data_type: Any  # Tensor, StateVector, Signal, etc.
+    data_type: Type  # Type[BrainData] - Tensor, StateVector, Signal, etc.
     shape: Optional[tuple] = None
     frequency: str = ""
     protocol: Protocol = Protocol.ASYNC_PUSH
@@ -146,14 +146,14 @@ class BrainNode(ABC):
             expected_shape = parsed_shape
 
         self._input_ports["IN"] = PortSpec(
-            port_id="IN", name="输入信号",
+            port_id="IN", name="Input Signal",
             data_type=expected_type, shape=expected_shape,
             frequency=self._config.frequency,
             protocol=self._config.protocol,
             required=True,
         )
         self._output_ports["OUT"] = PortSpec(
-            port_id="OUT", name="输出信号",
+            port_id="OUT", name="Output Signal",
             data_type=expected_type, shape=expected_shape,
             frequency=self._config.frequency,
             protocol=self._config.protocol,
@@ -209,12 +209,12 @@ class BrainNode(ABC):
             return
 
         expected_type = in_port.data_type
-        if expected_type is not BrainData and not isinstance(data, expected_type):
+        if expected_type != BrainData and not isinstance(data, expected_type):
             actual_type = type(data).__name__
             expected_name = getattr(expected_type, '__name__', str(expected_type))
             raise ValueError(
                 f"Node {self.node_id} ({self.short_name}): "
-                f"输入数据类型不匹配: 期望 {expected_name}, 实际 {actual_type}"
+                f"Input data type mismatch: expected {expected_name}, actual {actual_type}"
             )
 
         # Shape validation for Tensor
@@ -222,7 +222,7 @@ class BrainNode(ABC):
             if data.shape != in_port.shape:
                 raise ValueError(
                     f"Node {self.node_id} ({self.short_name}): "
-                    f"输入Tensor形状不匹配: 期望 {in_port.shape}, 实际 {data.shape}"
+                    f"Input Tensor shape mismatch: expected {in_port.shape}, actual {data.shape}"
                 )
 
     def _validate_output(self, data: BrainData) -> None:
@@ -240,12 +240,12 @@ class BrainNode(ABC):
             return
 
         expected_type = out_port.data_type
-        if expected_type is not BrainData and not isinstance(data, expected_type):
+        if expected_type != BrainData and not isinstance(data, expected_type):
             actual_type = type(data).__name__
             expected_name = getattr(expected_type, '__name__', str(expected_type))
             raise ValueError(
                 f"Node {self.node_id} ({self.short_name}): "
-                f"输出数据类型不匹配: 期望 {expected_name}, 实际 {actual_type}"
+                f"Output data type mismatch: expected {expected_name}, actual {actual_type}"
             )
 
         # Shape validation for Tensor
@@ -253,7 +253,7 @@ class BrainNode(ABC):
             if data.shape != out_port.shape:
                 raise ValueError(
                     f"Node {self.node_id} ({self.short_name}): "
-                    f"输出Tensor形状不匹配: 期望 {out_port.shape}, 实际 {data.shape}"
+                    f"Output Tensor shape mismatch: expected {out_port.shape}, actual {data.shape}"
                 )
 
     @property

@@ -16,6 +16,25 @@ from .types import BrainData
 
 logger = logging.getLogger(__name__)
 
+# Field names used in Chinese DESIGN.md files. Encoded as Unicode escapes so
+# the source stays ASCII-clean while still matching the Chinese document format.
+# Translations are provided in comments for maintainability.
+_FIELD_LAYER = "\u5c42\u7ea7"              # Layer
+_FIELD_NODE_ID = "\u8282\u70b9ID"          # Node ID
+_FIELD_FOLDER_NAME = "\u6587\u4ef6\u5939\u540d"  # Folder name
+_FIELD_NODE_TYPE = "\u8282\u70b9\u7c7b\u578b"    # Node type
+_LEAF_MARKER = "\u53f6\u8282\u70b9"        # Leaf node marker
+_FIELD_REGION_TYPE = "\u8111\u533a\u7c7b\u578b"  # Region type
+_FIELD_CHILDREN_COUNT = "\u5b50\u8282\u70b9\u6570"  # Children count
+_FIELD_PARENT = "\u7236\u6a21\u5757"       # Parent module
+_SECTION_RESPONSIBILITY = "\u804c\u8d23\u529f\u80fd"  # Responsibility section
+_FIELD_ALGORITHM = "\u7b97\u6cd5"          # Algorithm
+# Characters used in the layer string format, e.g. "Layer 0 (L00)"
+_CHAR_DI = "\u7b2c"                         # Ordinal prefix
+_CHAR_CENG = "\u5c42"                       # Layer suffix
+# Fullwidth colon used in some DESIGN.md field markers
+_CHAR_FW_COLON = "\uff1a"
+
 
 class DesignDocParser:
     """Parse DESIGN.md files to extract node metadata."""
@@ -26,37 +45,37 @@ class DesignDocParser:
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # Extract layer number from the "层级" field, e.g. "第0层 (L00)" -> 0
-        layer_str = DesignDocParser._extract_field(content, "层级")
+        # Extract layer number from the layer field, e.g. "Layer 0 (L00)" -> 0
+        layer_str = DesignDocParser._extract_field(content, _FIELD_LAYER)
         layer = DesignDocParser._parse_layer(layer_str)
 
         # Extract node_id
-        node_id_str = DesignDocParser._extract_field(content, "节点ID")
+        node_id_str = DesignDocParser._extract_field(content, _FIELD_NODE_ID)
         node_id = int(node_id_str) if node_id_str.isdigit() else 0
 
         # Extract folder_name, stripping backticks if present
-        folder_name = DesignDocParser._extract_field(content, "文件夹名").strip("`")
+        folder_name = DesignDocParser._extract_field(content, _FIELD_FOLDER_NAME).strip("`")
 
         # Extract node_type to determine if leaf
-        node_type_str = DesignDocParser._extract_field(content, "节点类型")
-        is_leaf = "叶节点" in node_type_str
+        node_type_str = DesignDocParser._extract_field(content, _FIELD_NODE_TYPE)
+        is_leaf = _LEAF_MARKER in node_type_str
 
         # Extract region_type
-        region_type_str = DesignDocParser._extract_field(content, "脑区类型")
+        region_type_str = DesignDocParser._extract_field(content, _FIELD_REGION_TYPE)
         region_type = DesignDocParser._parse_region_type(region_type_str)
 
         # Extract children count
-        children_count_str = DesignDocParser._extract_field(content, "子节点数")
+        children_count_str = DesignDocParser._extract_field(content, _FIELD_CHILDREN_COUNT)
         children_count = int(children_count_str) if children_count_str.isdigit() else 0
 
         # Extract parent module
-        parent_str = DesignDocParser._extract_field(content, "父模块")
+        parent_str = DesignDocParser._extract_field(content, _FIELD_PARENT)
 
         # Extract responsibility
-        responsibility = DesignDocParser._extract_section(content, "职责功能")
+        responsibility = DesignDocParser._extract_section(content, _SECTION_RESPONSIBILITY)
 
         # Extract algorithm
-        algorithm = DesignDocParser._extract_field(content, "算法")
+        algorithm = DesignDocParser._extract_field(content, _FIELD_ALGORITHM)
 
         # Extract tensor shape and frequency from input interface table
         tensor_shape = DesignDocParser._extract_tensor_shape(content)
@@ -96,7 +115,7 @@ class DesignDocParser:
     @staticmethod
     def _extract_field(content: str, field_name: str) -> str:
         """Extract a field value from markdown: - **field_name**: value"""
-        pattern = rf'\*\*{re.escape(field_name)}\*\*[:：]\s*(.+?)(?:\n|$)'
+        pattern = rf'\*\*{re.escape(field_name)}\*\*[:{_CHAR_FW_COLON}]\s*(.+?)(?:\n|$)'
         match = re.search(pattern, content)
         return match.group(1).strip() if match else ""
 
@@ -109,8 +128,8 @@ class DesignDocParser:
 
     @staticmethod
     def _parse_layer(layer_str: str) -> int:
-        """Parse layer number from string like '第0层 (L00)' or '第10层 (L10)'."""
-        match = re.search(r'第(\d+)层', layer_str)
+        """Parse layer number from a layer string (e.g. 'L00' or 'L10' format)."""
+        match = re.search(_CHAR_DI + r'(\d+)' + _CHAR_CENG, layer_str)
         if match:
             return int(match.group(1))
         return 0
@@ -434,20 +453,20 @@ class BrainTreeBuilder:
 
         # Check total node count
         if self._tree.total_nodes != 2047:
-            errors.append(f"节点数: {self._tree.total_nodes}, 预期: 2047")
+            errors.append(f"Node count: {self._tree.total_nodes}, expected: 2047")
 
         # Check each layer has correct count
         for layer in range(11):
             count = len(self._tree.get_nodes_by_layer(layer))
             expected = 2 ** layer
             if count != expected:
-                errors.append(f"第{layer}层: {count}个节点, 预期: {expected}")
+                errors.append(f"Layer {layer}: {count} nodes, expected: {expected}")
 
         # Check each non-leaf has exactly 2 children
         for node in self._tree._nodes.values():
             if not node.is_leaf and len(node.children) != 2:
                 errors.append(
-                    f"节点{node.node_id}: {len(node.children)}个子节点, 预期: 2"
+                    f"Node {node.node_id}: {len(node.children)} children, expected: 2"
                 )
 
         # Check each child's parent_id matches
@@ -455,12 +474,12 @@ class BrainTreeBuilder:
             if node.parent is not None:
                 if node.node_id not in node.parent.children:
                     errors.append(
-                        f"节点{node.node_id}: 父节点的children中不包含此节点"
+                        f"Node {node.node_id}: parent's children does not contain this node"
                     )
 
         # Check layer depth
         if self._tree.max_layer != 10:
-            errors.append(f"最大层级: {self._tree.max_layer}, 预期: 10")
+            errors.append(f"Max layer: {self._tree.max_layer}, expected: 10")
 
         return errors
 
@@ -577,24 +596,24 @@ class BrainTree:
 
         # Check node count
         if self.total_nodes != 2047:
-            errors.append(f"节点数: {self.total_nodes}, 预期: 2047")
+            errors.append(f"Node count: {self.total_nodes}, expected: 2047")
 
         # Check layers
         if self.max_layer != 10:
-            errors.append(f"最大层级: {self.max_layer}, 预期: 10")
+            errors.append(f"Max layer: {self.max_layer}, expected: 10")
 
         # Check each layer count
         for layer in range(11):
             count = len(self.get_nodes_by_layer(layer))
             expected = 2 ** layer
             if count != expected:
-                errors.append(f"第{layer}层: {count}个节点, 预期: {expected}")
+                errors.append(f"Layer {layer}: {count} nodes, expected: {expected}")
 
         # Check binary tree property
         for node in self._nodes.values():
             if not node.is_leaf and len(node.children) != 2:
                 errors.append(
-                    f"节点{node.node_id}: {len(node.children)}个子节点, 预期: 2"
+                    f"Node {node.node_id}: {len(node.children)} children, expected: 2"
                 )
 
         return len(errors) == 0, errors

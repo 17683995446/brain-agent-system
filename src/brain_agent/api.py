@@ -23,7 +23,7 @@ Usage:
 import logging
 import sys
 import time
-from typing import Iterator, List, Optional, Callable, Dict, Any
+from typing import Iterator, List, Optional, Callable, Dict, Any, Literal
 
 from .tree import BrainTree, BrainTreeBuilder
 from .node import BrainNode
@@ -31,6 +31,12 @@ from .scheduler import FrequencyScheduler, SchedulerConfig, StepResult
 from .monitoring import MetricsCollector, Tracer
 from .types import BrainData
 from .paths import find_brain_tree_json
+
+try:
+    from importlib.metadata import version as _get_version
+    __version__ = _get_version("brain-agent-system")
+except Exception:
+    __version__ = "0.5.0"
 
 logger = logging.getLogger(__name__)
 
@@ -104,11 +110,16 @@ class Simulation:
         tree: BrainTree,
         scheduler: Optional[FrequencyScheduler] = None,
         metrics: Optional[MetricsCollector] = None,
+        capture_outputs: bool = False,
     ) -> None:
         self.tree = tree
-        self.scheduler = scheduler or FrequencyScheduler(tree)
+        if scheduler is not None:
+            self.scheduler = scheduler
+        else:
+            self.scheduler = FrequencyScheduler(tree, capture_outputs=capture_outputs)
         self.metrics = metrics or MetricsCollector(tree)
         self.tracer = Tracer()
+        self.scheduler.set_tracer(self.tracer)
         self._results: List[StepResult] = []
 
     def __enter__(self) -> "Simulation":
@@ -124,12 +135,15 @@ class Simulation:
         cls,
         json_path: Optional[str] = None,
         config: Optional[SchedulerConfig] = None,
+        capture_outputs: bool = False,
     ) -> "Simulation":
         """Create a Simulation from a brain tree JSON file.
 
         Args:
             json_path: Path to brain tree JSON. If None, searches standard locations.
             config: Optional scheduler configuration.
+            capture_outputs: If True, capture per-node outputs in StepResult.
+                Enables get_node_result() and to_dataframe(). Increases memory usage.
 
         Returns:
             A Simulation instance.
@@ -147,7 +161,10 @@ class Simulation:
             f"{tree.total_nodes} nodes, {tree.max_layer + 1} layers"
         )
 
-        scheduler = FrequencyScheduler(tree, config) if config else FrequencyScheduler(tree)
+        if config is not None:
+            scheduler = FrequencyScheduler(tree, config, capture_outputs=capture_outputs)
+        else:
+            scheduler = FrequencyScheduler(tree, capture_outputs=capture_outputs)
         metrics = MetricsCollector(tree)
 
         return cls(tree, scheduler, metrics)
@@ -254,6 +271,10 @@ class Simulation:
                 if result.total_latency_ms > 500:
                     break  # Stop early
         """
+        if steps < 0:
+            raise ValueError(
+                f"steps must be >= 0, got {steps}. Use 0 for no steps."
+            )
         if progress:
             try:
                 from tqdm import tqdm
@@ -322,6 +343,228 @@ class Simulation:
         """Get all step results from this simulation."""
         return self._results
 
+    def get_node_result(self, node_id: int, step: int) -> Optional[BrainData]:
+        """Get the output of a specific node at a specific step.
+
+        Requires capture_outputs=True when creating the Simulation.
+
+        Args:
+            node_id: The node ID to query.
+            step: The step number (0-indexed).
+
+        Returns:
+            The BrainData output of the node at that step, or None if
+            not captured or node was not processed at that step.
+
+        Raises:
+            RuntimeError: If capture_outputs was not enabled.
+            IndexError: If step is out of range.
+        """
+        if not self.scheduler._capture_outputs:
+            raise RuntimeError(
+                "capture_outputs is not enabled. "
+                "Create Simulation with capture_outputs=True to use get_node_result()."
+            )
+        if step < 0 or step >= len(self._results):
+            raise IndexError(
+                f"Step {step} out of range. "
+                f"Valid range: 0 to {len(self._results) - 1}."
+            )
+        return self._results[step].node_outputs.get(node_id)
+
+    def get_node_latency(self, node_id: int, step: int) -> Optional[float]:
+        """Get the processing latency of a specific node at a specific step.
+
+        Requires capture_outputs=True when creating the Simulation.
+
+        Args:
+            node_id: The node ID to query.
+            step: The step number (0-indexed).
+
+        Returns:
+            Latency in milliseconds, or None if not captured.
+
+        Raises:
+            RuntimeError: If capture_outputs was not enabled.
+            IndexError: If step is out of range.
+        """
+        if not self.scheduler._capture_outputs:
+            raise RuntimeError(
+                "capture_outputs is not enabled. "
+                "Create Simulation with capture_outputs=True to use get_node_latency()."
+            )
+        if step < 0 or step >= len(self._results):
+            raise IndexError(
+                f"Step {step} out of range. "
+                f"Valid range: 0 to {len(self._results) - 1}."
+            )
+        return self._results[step].node_latencies.get(node_id)
+
+    def to_dataframe(self, node_ids: Optional[List[int]] = None) -> Any:
+        """Convert simulation results to a pandas DataFrame.
+
+        Requires capture_outputs=True and pandas installed.
+
+        Args:
+            node_ids: Optional list of node IDs to include. If None,
+                includes all nodes that produced output.
+
+        Returns:
+            A pandas DataFrame with columns: step, sim_time, node_id,
+            latency_ms, output_type, output_value (for Signal) or
+            output_shape (for Tensor/StateVector).
+
+        Raises:
+            RuntimeError: If capture_outputs not enabled or pandas not installed.
+
+        Example:
+            sim = Simulation.from_json(capture_outputs=True)
+            sim.run(steps=100)
+            df = sim.to_dataframe(node_ids=[0, 1, 2])
+            print(df.head())
+        """
+        if not self.scheduler._capture_outputs:
+            raise RuntimeError(
+                "capture_outputs is not enabled. "
+                "Create Simulation with capture_outputs=True to use to_dataframe()."
+            )
+        try:
+            import pandas as pd
+        except ImportError:
+            raise RuntimeError(
+                "pandas is not installed. "
+                "Install with: pip install pandas"
+            )
+
+        rows = []
+        for i, result in enumerate(self._results):
+            for nid, output in result.node_outputs.items():
+                if node_ids is not None and nid not in node_ids:
+                    continue
+                latency = result.node_latencies.get(nid, 0.0)
+                row = {
+                    "step": i,
+                    "sim_time": result.sim_time,
+                    "node_id": nid,
+                    "latency_ms": latency,
+                    "output_type": type(output).__name__,
+                }
+                # Extract value for Signal, shape for Tensor/StateVector
+                if hasattr(output, "value"):
+                    row["output_value"] = output.value
+                if hasattr(output, "shape"):
+                    row["output_shape"] = str(output.shape)
+                if hasattr(output, "dimension"):
+                    row["output_dimension"] = output.dimension
+                rows.append(row)
+
+        return pd.DataFrame(rows)
+
+    def save_checkpoint(self, path: str) -> None:
+        """Save simulation state to a checkpoint file.
+
+        Serializes the scheduler step/time, all node internal states,
+        and recent results to a JSON file. Use load_checkpoint() to restore.
+
+        Args:
+            path: Output file path (JSON format).
+
+        Example:
+            sim.run(steps=50)
+            sim.save_checkpoint("checkpoint_step50.json")
+            # ... later, possibly in a new process ...
+            sim2 = Simulation.from_json()
+            sim2.load_checkpoint("checkpoint_step50.json")
+            sim2.run(steps=50)  # Continue from step 50
+        """
+        import json
+
+        # Collect node states
+        node_states = {}
+        for node in self.tree.bfs_traverse():
+            state = {}
+            for key, value in node._state.items():
+                state[key] = self._serialize_value(value)
+            node_states[node.node_id] = state
+
+        checkpoint = {
+            "version": __version__,
+            "step": self.scheduler.step_count,
+            "sim_time": self.scheduler.sim_time,
+            "node_states": node_states,
+            "results_count": len(self._results),
+        }
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(checkpoint, f, indent=2)
+
+        logger.info(f"Checkpoint saved to {path} (step={checkpoint['step']})")
+
+    @staticmethod
+    def _serialize_value(value: Any) -> Any:
+        """Serialize a value for JSON, handling numpy types recursively."""
+        import numpy as np
+        if isinstance(value, np.ndarray):
+            return {"__ndarray__": True, "data": value.tolist(),
+                    "dtype": str(value.dtype)}
+        if isinstance(value, np.generic):
+            return {"__npscalar__": True, "data": value.item(),
+                    "dtype": str(value.dtype)}
+        if isinstance(value, dict):
+            return {k: Simulation._serialize_value(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [Simulation._serialize_value(v) for v in value]
+        return value
+
+    @staticmethod
+    def _deserialize_value(value: Any) -> Any:
+        """Deserialize a value from JSON, restoring numpy types."""
+        import numpy as np
+        if isinstance(value, dict):
+            if value.get("__ndarray__"):
+                return np.array(value["data"], dtype=value.get("dtype", "float32"))
+            if value.get("__npscalar__"):
+                return np.array(value["data"], dtype=value.get("dtype", "float32")).item()
+        return value
+
+    def load_checkpoint(self, path: str) -> None:
+        """Load simulation state from a checkpoint file.
+
+        Restores scheduler step/time and all node internal states.
+        Previous results are cleared.
+
+        Args:
+            path: Checkpoint file path (JSON format).
+
+        Raises:
+            FileNotFoundError: If the checkpoint file doesn't exist.
+            ValueError: If the checkpoint is corrupted or incompatible.
+        """
+        import json
+
+        with open(path, "r", encoding="utf-8") as f:
+            checkpoint = json.load(f)
+
+        # Restore scheduler state
+        self.scheduler._step = checkpoint["step"]
+        self.scheduler._sim_time = checkpoint["sim_time"]
+
+        # Restore node states (JSON keys are strings, convert to int)
+        node_states = checkpoint.get("node_states", {})
+        node_states_int = {int(k): v for k, v in node_states.items()}
+        for node in self.tree.bfs_traverse():
+            if node.node_id in node_states_int:
+                for key, value in node_states_int[node.node_id].items():
+                    node._state[key] = self._deserialize_value(value)
+
+        # Clear previous results
+        self._results.clear()
+
+        logger.info(
+            f"Checkpoint loaded from {path} "
+            f"(step={checkpoint['step']}, sim_time={checkpoint['sim_time']:.4f})"
+        )
+
     @property
     def step_count(self) -> int:
         """Get the current step number."""
@@ -332,7 +575,7 @@ class Simulation:
         """Get the current simulation time in seconds."""
         return self.scheduler.sim_time
 
-    def export_metrics(self, format: str = "prometheus") -> str:
+    def export_metrics(self, format: Literal["prometheus"] = "prometheus") -> str:
         """Export collected metrics.
 
         Args:
@@ -408,7 +651,7 @@ class Simulation:
     def export(
         self,
         path: Optional[str] = None,
-        format: Optional[str] = None,
+        format: Optional[Literal["json", "csv", "npz"]] = None,
         include_metrics: bool = True,
         include_node_states: bool = False,
     ) -> Any:

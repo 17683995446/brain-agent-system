@@ -19,7 +19,7 @@ import csv
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Literal
 
 import numpy as np
 
@@ -60,7 +60,11 @@ class FileOutput(OutputAdapter):
     Writes data to a file in the specified format.
     """
 
-    def __init__(self, path: Union[str, Path], format: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        path: Union[str, Path],
+        format: Optional[Literal["json", "csv", "npz", "memory"]] = None,
+    ) -> None:
         self._path = Path(path)
         self._format = format or self._path.suffix.lstrip(".")
         self._buffer: List[Any] = []
@@ -193,7 +197,7 @@ class ResultExporter:
     def __init__(
         self,
         path: Optional[Union[str, Path]] = None,
-        format: Optional[str] = None,
+        format: Optional[Literal["json", "csv", "npz", "memory"]] = None,
     ) -> None:
         self._path = Path(path) if path else None
         self._format = format
@@ -287,7 +291,7 @@ class ResultExporter:
 
 def create_exporter(
     path: Optional[Union[str, Path]] = None,
-    format: Optional[str] = None,
+    format: Optional[Literal["json", "csv", "npz", "memory"]] = None,
 ) -> ResultExporter:
     """Create a result exporter.
 

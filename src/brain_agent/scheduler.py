@@ -12,12 +12,15 @@ The scheduler drives the simulation by using each node's protocol method
 import time
 import logging
 from enum import Enum
-from typing import Dict, List, Optional, Any, Callable
+from typing import Dict, List, Optional, Any, Callable, TYPE_CHECKING
 from dataclasses import dataclass, field
 
 from .tree import BrainTree
 from .node import BrainNode, Protocol
 from .types import BrainData, Signal, Tensor, StateVector
+
+if TYPE_CHECKING:
+    from .monitoring.tracer import Tracer
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +74,7 @@ class SchedulerConfig:
     """Scheduler configuration.
 
     dt_fast, dt_medium, dt_slow must match the exact FrequencySpec values.
+    Validation is performed in __post_init__ to catch errors early.
     """
     dt_fast: float = 0.005      # 5ms for fast loop (exact: 100Hz nominal)
     dt_medium: float = 0.02     # 20ms for medium loop (exact: 20Hz nominal)
@@ -79,10 +83,57 @@ class SchedulerConfig:
     max_steps: int = 0          # 0 = infinite
     enable_metrics: bool = True
 
+    def __post_init__(self) -> None:
+        """Validate configuration values at construction time."""
+        if self.dt_fast <= 0:
+            raise ValueError(
+                f"dt_fast must be positive, got {self.dt_fast}."
+            )
+        if self.dt_medium <= 0:
+            raise ValueError(
+                f"dt_medium must be positive, got {self.dt_medium}."
+            )
+        if self.dt_slow <= 0:
+            raise ValueError(
+                f"dt_slow must be positive, got {self.dt_slow}."
+            )
+        if self.dt_medium < self.dt_fast:
+            raise ValueError(
+                f"dt_medium ({self.dt_medium}) must be >= dt_fast ({self.dt_fast})."
+            )
+        if self.dt_slow < self.dt_medium:
+            raise ValueError(
+                f"dt_slow ({self.dt_slow}) must be >= dt_medium ({self.dt_medium})."
+            )
+        if self.max_latency_ms <= 0:
+            raise ValueError(
+                f"max_latency_ms must be positive, got {self.max_latency_ms}."
+            )
+        if self.max_steps < 0:
+            raise ValueError(
+                f"max_steps must be >= 0 (0=infinite), got {self.max_steps}."
+            )
+
 
 @dataclass
 class StepResult:
-    """Result of a single simulation step."""
+    """Result of a single simulation step.
+
+    Attributes:
+        step: Step number (1-based).
+        sim_time: Simulation time in seconds.
+        band: Frequency band that was active.
+        nodes_processed: Number of nodes processed this step.
+        total_latency_ms: Total processing latency in milliseconds.
+        max_node_latency_ms: Maximum single-node latency in milliseconds.
+        errors: List of error messages from failed nodes.
+        node_outputs: Per-node output data for this step.
+            Maps node_id to the BrainData output. Only populated when
+            capture_outputs=True is passed to the scheduler.
+        node_latencies: Per-node latency in milliseconds.
+            Maps node_id to processing latency. Only populated when
+            capture_outputs=True is passed to the scheduler.
+    """
     step: int
     sim_time: float
     band: FrequencyBand
@@ -90,6 +141,8 @@ class StepResult:
     total_latency_ms: float
     max_node_latency_ms: float
     errors: List[str] = field(default_factory=list)
+    node_outputs: Dict[int, Any] = field(default_factory=dict)
+    node_latencies: Dict[int, float] = field(default_factory=dict)
 
 
 class FrequencyScheduler:
@@ -100,13 +153,20 @@ class FrequencyScheduler:
     slow nodes every 20 steps (100ms/5ms).
     """
 
-    def __init__(self, tree: BrainTree, config: Optional[SchedulerConfig] = None):
+    def __init__(
+        self,
+        tree: BrainTree,
+        config: Optional[SchedulerConfig] = None,
+        capture_outputs: bool = False,
+    ):
         self._tree = tree
         self._config = config or SchedulerConfig()
         self._step = 0
         self._sim_time = 0.0
         self._running = False
         self._results: List[StepResult] = []
+        self._capture_outputs = capture_outputs
+        self._tracer: Optional["Tracer"] = None
         self._band_counters: Dict[FrequencyBand, int] = {
             FrequencyBand.FAST: 0,
             FrequencyBand.MEDIUM: 0,
@@ -138,6 +198,22 @@ class FrequencyScheduler:
             f"medium={len(self._band_nodes[FrequencyBand.MEDIUM])}, "
             f"slow={len(self._band_nodes[FrequencyBand.SLOW])}"
         )
+
+    def set_tracer(self, tracer: Optional["Tracer"]) -> None:
+        """Enable or disable execution tracing.
+
+        When a tracer is set, each node processing is recorded as a span,
+        allowing users to visualize the data flow and identify bottlenecks.
+
+        Args:
+            tracer: A Tracer instance, or None to disable tracing.
+        """
+        self._tracer = tracer
+
+    @property
+    def tracer(self) -> Optional["Tracer"]:
+        """The current tracer, or None if tracing is disabled."""
+        return self._tracer
 
     def _get_band(self, node: BrainNode) -> FrequencyBand:
         """Determine frequency band for a node based on its protocol."""
@@ -197,17 +273,35 @@ class FrequencyScheduler:
 
         Returns error string if process() failed, None on success.
         """
-        # Process the node directly (metrics updated inside process())
         # Skip if already processed via SYNC_CALL recursion this step
         if node.node_id in self._processed_this_step:
             return None
         self._processed_this_step.add(node.node_id)
+
+        # Start trace span if tracer is enabled
+        span = None
+        if self._tracer is not None:
+            span = self._tracer.start_span(
+                node_id=node.node_id,
+                node_name=node.short_name,
+                layer=node.layer,
+                data_type=type(data).__name__,
+            )
 
         t_start = time.perf_counter()
         result = node.safe_process(data)
         elapsed = time.perf_counter() - t_start
         # Record latency for generated nodes that don't self-report
         node._record_scheduler_latency(elapsed)
+
+        # Capture per-node output if enabled
+        if self._capture_outputs:
+            self._step_node_outputs[node.node_id] = result
+            self._step_node_latencies[node.node_id] = elapsed * 1000.0
+
+        # Finish trace span
+        if span is not None and self._tracer is not None:
+            self._tracer.finish_span(span, error=node._last_process_error)
 
         # Propagate to children based on protocol semantics
         if node._children:
@@ -245,6 +339,9 @@ class FrequencyScheduler:
         total_latency = 0.0
         # Reset per-step processing tracker (for SYNC_CALL dedup)
         self._processed_this_step.clear()
+        # Reset per-step capture dicts
+        self._step_node_outputs: Dict[int, Any] = {}
+        self._step_node_latencies: Dict[int, float] = {}
 
         # Determine the input data for this step
         # (external input for root, per-node defaults for others)
@@ -324,6 +421,8 @@ class FrequencyScheduler:
             total_latency_ms=total_latency,
             max_node_latency_ms=max_latency,
             errors=errors,
+            node_outputs=dict(self._step_node_outputs) if self._capture_outputs else {},
+            node_latencies=dict(self._step_node_latencies) if self._capture_outputs else {},
         )
         self._results.append(result)
         return result
