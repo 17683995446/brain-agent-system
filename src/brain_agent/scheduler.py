@@ -381,8 +381,8 @@ class FrequencyScheduler:
                 if node.node_id == 0 and external_input is not None:
                     err = self._process_node_with_protocol(node, external_input)
                 else:
-                    if node.has_queued_input:
-                        queued = node.pop_input()
+                    queued = node.pop_input()
+                    if queued is not None:
                         err = self._process_node_with_protocol(node, queued)
                     else:
                         err = self._process_node_with_protocol(node, self._get_default_input(node))
@@ -402,8 +402,8 @@ class FrequencyScheduler:
             for node in self._band_nodes[FrequencyBand.MEDIUM]:
                 try:
                     t0 = time.perf_counter()
-                    if node.has_queued_input:
-                        queued = node.pop_input()
+                    queued = node.pop_input()
+                    if queued is not None:
                         err = self._process_node_with_protocol(node, queued)
                     else:
                         err = self._process_node_with_protocol(node, self._get_default_input(node))
@@ -423,8 +423,8 @@ class FrequencyScheduler:
             for node in self._band_nodes[FrequencyBand.SLOW]:
                 try:
                     t0 = time.perf_counter()
-                    if node.has_queued_input:
-                        queued = node.pop_input()
+                    queued = node.pop_input()
+                    if queued is not None:
                         err = self._process_node_with_protocol(node, queued)
                     else:
                         err = self._process_node_with_protocol(node, self._get_default_input(node))

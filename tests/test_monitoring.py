@@ -3,14 +3,9 @@
 Tests cover MetricsCollector, Tracer, and integration with scheduler.
 """
 
-import sys
-import os
 import time
 
 import pytest
-
-# Ensure src is on path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from brain_agent.node import BrainNode, NodeConfig, RegionType, Protocol
 from brain_agent.tree import BrainTree, PassThroughBrainNode

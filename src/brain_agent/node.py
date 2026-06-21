@@ -116,7 +116,7 @@ class BrainNode(ABC):
         self._state: Dict[str, Any] = {}
         self._children: Dict[int, BrainNode] = {}
         self._parent: Optional[BrainNode] = None
-        self._input_queue: deque = deque(maxlen=DEFAULT_MAX_QUEUE_SIZE)
+        self._input_queue: deque[BrainData] = deque(maxlen=DEFAULT_MAX_QUEUE_SIZE)
         self._output_history: List[BrainData] = []
         self._process_count: int = 0
         self._last_process_time: float = 0.0

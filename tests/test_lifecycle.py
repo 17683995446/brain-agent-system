@@ -1,13 +1,10 @@
 """Tests for graceful shutdown management."""
 
-import sys
 import os
 import signal
 import threading
 import time
 import pytest
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from brain_agent.lifecycle import GracefulShutdown
 

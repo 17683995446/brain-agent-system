@@ -1,12 +1,8 @@
 """Tests for HTTP health check server."""
 
-import sys
-import os
 import time
 import urllib.request
 import pytest
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from brain_agent.server import HealthServer
 from brain_agent.monitoring.metrics import MetricsCollector

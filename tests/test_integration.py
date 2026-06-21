@@ -5,13 +5,9 @@ the complete 2047-node system works correctly end-to-end.
 """
 
 import time
+import os
 import pytest
 import numpy as np
-import sys
-import os
-
-# Add project to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from brain_agent.tree import BrainTreeBuilder
 from brain_agent.scheduler import FrequencyScheduler, SchedulerConfig
