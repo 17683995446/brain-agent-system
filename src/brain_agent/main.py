@@ -23,7 +23,9 @@ from .server import HealthServer
 from .lifecycle import GracefulShutdown
 from .config import BrainConfig
 from .paths import find_brain_tree_json
+from .exceptions import ConfigValidationError
 
+# Version: use importlib.metadata directly to avoid circular import
 __version__ = "0.5.0"
 try:
     from importlib.metadata import version as _get_version
@@ -65,7 +67,7 @@ def _load_config(args: argparse.Namespace) -> BrainConfig:
         config = BrainConfig.from_defaults()
     errors = config.validate()
     if errors:
-        raise ValueError(f"Configuration validation failed: {errors}")
+        raise ConfigValidationError(f"Configuration validation failed: {errors}")
     return config
 
 

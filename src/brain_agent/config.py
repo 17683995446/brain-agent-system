@@ -9,6 +9,11 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import yaml
 
+from .constants import (
+    DEFAULT_DT_FAST, DEFAULT_DT_MEDIUM, DEFAULT_DT_SLOW,
+    DEFAULT_MAX_LATENCY_MS, DEFAULT_METRICS_PORT,
+)
+
 if TYPE_CHECKING:
     from .scheduler import SchedulerConfig
 
@@ -148,28 +153,28 @@ class BrainConfig:
             errors.append(f"brain.max_layers must be 1-20, got {max_layers}")
 
         # Validate simulation section
-        dt_fast = self.get_float("simulation.dt_fast", 0.005)
+        dt_fast = self.get_float("simulation.dt_fast", DEFAULT_DT_FAST)
         if dt_fast <= 0 or dt_fast > 1.0:
             errors.append(f"simulation.dt_fast must be (0, 1.0], got {dt_fast}")
 
-        dt_medium = self.get_float("simulation.dt_medium", 0.02)
+        dt_medium = self.get_float("simulation.dt_medium", DEFAULT_DT_MEDIUM)
         if dt_medium <= 0 or dt_medium < dt_fast:
             errors.append(
                 f"simulation.dt_medium must be >= dt_fast ({dt_fast}), got {dt_medium}"
             )
 
-        dt_slow = self.get_float("simulation.dt_slow", 0.1)
+        dt_slow = self.get_float("simulation.dt_slow", DEFAULT_DT_SLOW)
         if dt_slow <= 0 or dt_slow < dt_medium:
             errors.append(
                 f"simulation.dt_slow must be >= dt_medium ({dt_medium}), got {dt_slow}"
             )
 
-        max_latency = self.get_float("simulation.max_latency_ms", 10.0)
+        max_latency = self.get_float("simulation.max_latency_ms", DEFAULT_MAX_LATENCY_MS)
         if max_latency <= 0:
             errors.append(f"simulation.max_latency_ms must be positive, got {max_latency}")
 
         # Validate monitoring section
-        metrics_port = self.get_int("monitoring.metrics_port", 9090)
+        metrics_port = self.get_int("monitoring.metrics_port", DEFAULT_METRICS_PORT)
         if metrics_port < 1 or metrics_port > 65535:
             errors.append(f"monitoring.metrics_port must be 1-65535, got {metrics_port}")
 
@@ -188,10 +193,10 @@ class BrainConfig:
         from .scheduler import SchedulerConfig
 
         return SchedulerConfig(
-            dt_fast=self.get_float("simulation.dt_fast", 0.005),
-            dt_medium=self.get_float("simulation.dt_medium", 0.02),
-            dt_slow=self.get_float("simulation.dt_slow", 0.1),
-            max_latency_ms=self.get_float("simulation.max_latency_ms", 10.0),
+            dt_fast=self.get_float("simulation.dt_fast", DEFAULT_DT_FAST),
+            dt_medium=self.get_float("simulation.dt_medium", DEFAULT_DT_MEDIUM),
+            dt_slow=self.get_float("simulation.dt_slow", DEFAULT_DT_SLOW),
+            max_latency_ms=self.get_float("simulation.max_latency_ms", DEFAULT_MAX_LATENCY_MS),
             max_steps=self.get_int("simulation.max_steps", 0),
             enable_metrics=self.get_bool("monitoring.enable_metrics", True),
         )

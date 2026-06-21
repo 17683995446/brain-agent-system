@@ -13,6 +13,8 @@ from collections import deque
 
 from .node import BrainNode, NodeConfig, RegionType, Protocol
 from .types import BrainData
+from .exceptions import TreeValidationError
+from .constants import TOTAL_NODES, MAX_LAYER, CHILDREN_PER_NODE
 
 logger = logging.getLogger(__name__)
 
@@ -270,7 +272,7 @@ class BrainTreeBuilder:
                     logger.warning(f"Failed to parse {filepath}: {e}")
 
         if not all_metadata:
-            raise ValueError(f"No DESIGN.md files found under {root_path}")
+            raise TreeValidationError(f"No DESIGN.md files found under {root_path}")
 
         # Phase 2: Resolve parent IDs using directory hierarchy
         # For each node, walk up the directory tree to find the nearest
@@ -319,7 +321,7 @@ class BrainTreeBuilder:
 
         nodes_data = data.get("nodes", [])
         if not nodes_data:
-            raise ValueError(f"JSON file contains no nodes: {json_path}")
+            raise TreeValidationError(f"JSON file contains no nodes: {json_path}")
 
         # Phase 1: Build NodeConfig for each node
         for node_data in nodes_data:
@@ -452,8 +454,8 @@ class BrainTreeBuilder:
             return errors
 
         # Check total node count
-        if self._tree.total_nodes != 2047:
-            errors.append(f"Node count: {self._tree.total_nodes}, expected: 2047")
+        if self._tree.total_nodes != TOTAL_NODES:
+            errors.append(f"Node count: {self._tree.total_nodes}, expected: {TOTAL_NODES}")
 
         # Check each layer has correct count
         for layer in range(11):
@@ -466,7 +468,7 @@ class BrainTreeBuilder:
         for node in self._tree._nodes.values():
             if not node.is_leaf and len(node.children) != 2:
                 errors.append(
-                    f"Node {node.node_id}: {len(node.children)} children, expected: 2"
+                    f"Node {node.node_id}: {len(node.children)} children, expected: {CHILDREN_PER_NODE}"
                 )
 
         # Check each child's parent_id matches
@@ -479,7 +481,7 @@ class BrainTreeBuilder:
 
         # Check layer depth
         if self._tree.max_layer != 10:
-            errors.append(f"Max layer: {self._tree.max_layer}, expected: 10")
+            errors.append(f"Max layer: {self._tree.max_layer}, expected: {MAX_LAYER}")
 
         return errors
 
@@ -595,12 +597,12 @@ class BrainTree:
         errors = []
 
         # Check node count
-        if self.total_nodes != 2047:
-            errors.append(f"Node count: {self.total_nodes}, expected: 2047")
+        if self.total_nodes != TOTAL_NODES:
+            errors.append(f"Node count: {self.total_nodes}, expected: {TOTAL_NODES}")
 
         # Check layers
         if self.max_layer != 10:
-            errors.append(f"Max layer: {self.max_layer}, expected: 10")
+            errors.append(f"Max layer: {self.max_layer}, expected: {MAX_LAYER}")
 
         # Check each layer count
         for layer in range(11):
@@ -613,7 +615,7 @@ class BrainTree:
         for node in self._nodes.values():
             if not node.is_leaf and len(node.children) != 2:
                 errors.append(
-                    f"Node {node.node_id}: {len(node.children)} children, expected: 2"
+                    f"Node {node.node_id}: {len(node.children)} children, expected: {CHILDREN_PER_NODE}"
                 )
 
         return len(errors) == 0, errors

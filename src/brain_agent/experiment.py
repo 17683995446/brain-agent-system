@@ -32,6 +32,8 @@ import numpy as np
 from .api import Simulation
 from .scheduler import SchedulerConfig, StepResult
 from .types import BrainData
+from .exceptions import BrainAgentError
+from .constants import DEFAULT_DT_FAST, DEFAULT_DT_MEDIUM, DEFAULT_DT_SLOW
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +56,9 @@ class ExperimentConfig:
     name: str = "experiment"
     steps: int = 100
     seed: Optional[int] = None
-    dt_fast: float = 0.005
-    dt_medium: float = 0.02
-    dt_slow: float = 0.1
+    dt_fast: float = DEFAULT_DT_FAST
+    dt_medium: float = DEFAULT_DT_MEDIUM
+    dt_slow: float = DEFAULT_DT_SLOW
     json_path: Optional[str] = None
     output_dir: Optional[str] = None
     tags: List[str] = field(default_factory=list)
@@ -209,7 +211,7 @@ class Experiment:
             path = self._default_path(f"_results.{format}")
 
         if self._sim is None:
-            raise RuntimeError("Must run() before export()")
+            raise BrainAgentError("Must run() before export()")
 
         self._sim.export(path=path, format=format)
         return path

@@ -25,6 +25,7 @@ import numpy as np
 
 from ..scheduler import StepResult
 from ..monitoring import MetricsCollector, Tracer
+from ..exceptions import ExportError
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,7 @@ class FileOutput(OutputAdapter):
         elif self._format == "npz":
             self._flush_npz()
         else:
-            raise ValueError(
+            raise ExportError(
                 f"Unsupported output format: '{self._format}'. "
                 f"Supported formats: 'json', 'csv', 'npz', 'memory'."
             )

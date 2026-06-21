@@ -15,6 +15,7 @@ import numpy as np
 
 from ..node import BrainNode, NodeConfig
 from ..types import BrainData, Tensor, StateVector, Signal, Message
+from ..exceptions import NodeProcessError
 
 
 class BrainSystemNode(BrainNode):
@@ -65,7 +66,7 @@ class BrainSystemNode(BrainNode):
         elif isinstance(data, Message):
             result = data  # Pass through control messages unchanged
         else:
-            raise ValueError(
+            raise NodeProcessError(
                 f"Unsupported data type: {type(data).__name__}. "
                 f"Supported types: Tensor, StateVector, Signal, Message."
             )

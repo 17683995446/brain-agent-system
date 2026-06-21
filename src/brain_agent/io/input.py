@@ -23,6 +23,7 @@ from typing import Any, Callable, List, Optional, Union
 import numpy as np
 
 from ..types import BrainData, Signal, Tensor, StateVector, Message
+from ..exceptions import InputError
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ class ListInput(InputAdapter):
 
     def __init__(self, data: List[BrainData]) -> None:
         if not data:
-            raise ValueError("ListInput requires at least one BrainData item")
+            raise InputError("ListInput requires at least one BrainData item")
         self._data = data
         self._index = 0
 
@@ -130,7 +131,7 @@ class ArrayInput(InputAdapter):
 
     def __init__(self, arrays: List[np.ndarray], dt: float = 0.005) -> None:
         if not arrays:
-            raise ValueError("ArrayInput requires at least one array")
+            raise InputError("ArrayInput requires at least one array")
         self._arrays = arrays
         self._dt = dt
 
@@ -203,7 +204,7 @@ class FileInput(InputAdapter):
         elif suffix == ".csv":
             self._load_csv()
         else:
-            raise ValueError(f"Unsupported input file format: '{suffix}'. Supported formats: .json, .npz, .csv.")
+            raise InputError(f"Unsupported input file format: '{suffix}'. Supported formats: .json, .npz, .csv.")
 
         logger.info(f"Loaded {len(self._data)} input samples from {self._path}")
 
@@ -238,7 +239,7 @@ class FileInput(InputAdapter):
                     timestamp=float(item.get("timestamp", i * self._dt)),
                 ))
             else:
-                raise ValueError(
+                raise InputError(
                     f"Unknown data type in JSON: '{dtype}'. "
                     f"Valid types: 'signal', 'tensor', 'state_vector', 'spike_train', 'message'."
                 )
@@ -344,19 +345,19 @@ def create_input(
         return FileInput(source, **kwargs)
     elif isinstance(source, list):
         if not source:
-            raise ValueError("Cannot create input from empty list")
+            raise InputError("Cannot create input from empty list")
         if isinstance(source[0], BrainData):
             return ListInput(source)
         elif isinstance(source[0], np.ndarray):
             return ArrayInput(source, **kwargs)
         else:
-            raise ValueError(
+            raise InputError(
                 f"List items must be BrainData or np.ndarray, got {type(source[0])}"
             )
     elif callable(source):
         return CallbackInput(source)
     else:
-        raise ValueError(
+        raise InputError(
             f"Unsupported input source type: {type(source).__name__}. "
             f"Supported types: list, callable, str (file path), numpy ndarray, BrainData."
         )

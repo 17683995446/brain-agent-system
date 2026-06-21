@@ -43,6 +43,19 @@ from .io import (
     ResultExporter,
     create_exporter,
 )
+from .exceptions import (
+    BrainAgentError,
+    ConfigValidationError,
+    NodeValidationError,
+    NodeProcessError,
+    TreeValidationError,
+    SchedulerError,
+    SchedulerConfigError,
+    CheckpointError,
+    SerializationError,
+    InputError,
+    ExportError,
+)
 
 # Testing utilities (importable as brain_agent.testing)
 from . import testing as testing  # noqa: F401
@@ -52,7 +65,7 @@ try:
     from importlib.metadata import version as _get_version
     __version__ = _get_version("brain-agent-system")
 except Exception:
-    __version__ = "0.4.0"  # Fallback for development mode
+    __version__ = "0.5.0"  # Fallback for development mode
 
 __all__ = [
     # Version
@@ -106,4 +119,16 @@ __all__ = [
     "create_input",
     "ResultExporter",
     "create_exporter",
+    # Exceptions
+    "BrainAgentError",
+    "ConfigValidationError",
+    "NodeValidationError",
+    "NodeProcessError",
+    "TreeValidationError",
+    "SchedulerError",
+    "SchedulerConfigError",
+    "CheckpointError",
+    "SerializationError",
+    "InputError",
+    "ExportError",
 ]

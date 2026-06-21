@@ -1,21 +1,12 @@
+"""Shared pytest fixtures for BrainAgentSystem tests."""
+
 import os
 import pytest
-import numpy as np
 
-# Find JSON file - try multiple locations
-_JSON_SEARCH_PATHS = [
-    "/workspace/BrainAgentSystem/data/brain_tree_v5.json",
-    "/data/user/work/brain_tree_v5.json",
-]
-
-
-def find_json_path():
-    for p in _JSON_SEARCH_PATHS:
-        if os.path.exists(p):
-            return p
-    raise FileNotFoundError("brain_tree_v5.json not found in any search path")
+from brain_agent.paths import find_brain_tree_json
 
 
 @pytest.fixture(scope="session")
 def brain_json_path():
-    return find_json_path()
+    """Path to the brain tree JSON file, discovered via standard locations."""
+    return find_brain_tree_json()

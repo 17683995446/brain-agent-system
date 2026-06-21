@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 from .tree import BrainTree
 from .node import BrainNode, Protocol
 from .types import BrainData, Signal, Tensor, StateVector
+from .exceptions import SchedulerConfigError
+from .constants import DEFAULT_DT_FAST, DEFAULT_DT_MEDIUM, DEFAULT_DT_SLOW, DEFAULT_MAX_LATENCY_MS
 
 if TYPE_CHECKING:
     from .monitoring.tracer import Tracer
@@ -76,41 +78,41 @@ class SchedulerConfig:
     dt_fast, dt_medium, dt_slow must match the exact FrequencySpec values.
     Validation is performed in __post_init__ to catch errors early.
     """
-    dt_fast: float = 0.005      # 5ms for fast loop (exact: 100Hz nominal)
-    dt_medium: float = 0.02     # 20ms for medium loop (exact: 20Hz nominal)
-    dt_slow: float = 0.1        # 100ms for slow loop (exact: 1Hz nominal)
-    max_latency_ms: float = 10.0
+    dt_fast: float = DEFAULT_DT_FAST
+    dt_medium: float = DEFAULT_DT_MEDIUM
+    dt_slow: float = DEFAULT_DT_SLOW
+    max_latency_ms: float = DEFAULT_MAX_LATENCY_MS
     max_steps: int = 0          # 0 = infinite
     enable_metrics: bool = True
 
     def __post_init__(self) -> None:
         """Validate configuration values at construction time."""
         if self.dt_fast <= 0:
-            raise ValueError(
+            raise SchedulerConfigError(
                 f"dt_fast must be positive, got {self.dt_fast}."
             )
         if self.dt_medium <= 0:
-            raise ValueError(
+            raise SchedulerConfigError(
                 f"dt_medium must be positive, got {self.dt_medium}."
             )
         if self.dt_slow <= 0:
-            raise ValueError(
+            raise SchedulerConfigError(
                 f"dt_slow must be positive, got {self.dt_slow}."
             )
         if self.dt_medium < self.dt_fast:
-            raise ValueError(
+            raise SchedulerConfigError(
                 f"dt_medium ({self.dt_medium}) must be >= dt_fast ({self.dt_fast})."
             )
         if self.dt_slow < self.dt_medium:
-            raise ValueError(
+            raise SchedulerConfigError(
                 f"dt_slow ({self.dt_slow}) must be >= dt_medium ({self.dt_medium})."
             )
         if self.max_latency_ms <= 0:
-            raise ValueError(
+            raise SchedulerConfigError(
                 f"max_latency_ms must be positive, got {self.max_latency_ms}."
             )
         if self.max_steps < 0:
-            raise ValueError(
+            raise SchedulerConfigError(
                 f"max_steps must be >= 0 (0=infinite), got {self.max_steps}."
             )
 
@@ -215,6 +217,31 @@ class FrequencyScheduler:
         """The current tracer, or None if tracing is disabled."""
         return self._tracer
 
+    @property
+    def capture_outputs(self) -> bool:
+        """Whether per-node outputs are being captured in StepResult."""
+        return self._capture_outputs
+
+    @property
+    def step_count(self) -> int:
+        """Current step number (0-based)."""
+        return self._step
+
+    @property
+    def sim_time(self) -> float:
+        """Current simulation time in seconds."""
+        return self._sim_time
+
+    def set_state(self, step: int, sim_time: float) -> None:
+        """Restore scheduler state (used by checkpoint/resume).
+
+        Args:
+            step: Step number to restore.
+            sim_time: Simulation time to restore.
+        """
+        self._step = step
+        self._sim_time = sim_time
+
     def _get_band(self, node: BrainNode) -> FrequencyBand:
         """Determine frequency band for a node based on its protocol."""
         if node.protocol == Protocol.ASYNC_PUSH:
@@ -236,7 +263,7 @@ class FrequencyScheduler:
         if node.node_id in self._default_input_cache:
             return self._default_input_cache[node.node_id]
 
-        in_port = node._input_ports.get("IN")
+        in_port = node.input_ports.get("IN")
         result: BrainData
         if in_port is not None and in_port.data_type is not None:
             expected_type = in_port.data_type
@@ -292,7 +319,7 @@ class FrequencyScheduler:
         result = node.safe_process(data)
         elapsed = time.perf_counter() - t_start
         # Record latency for generated nodes that don't self-report
-        node._record_scheduler_latency(elapsed)
+        node.record_latency(elapsed)
 
         # Capture per-node output if enabled
         if self._capture_outputs:
@@ -301,27 +328,27 @@ class FrequencyScheduler:
 
         # Finish trace span
         if span is not None and self._tracer is not None:
-            self._tracer.finish_span(span, error=node._last_process_error)
+            self._tracer.finish_span(span, error=node.last_error)
 
         # Propagate to children based on protocol semantics
-        if node._children:
+        if node.children:
             if node.protocol == Protocol.ASYNC_PUSH:
                 # Fire-and-forget: queue result for children
-                for child in node._children.values():
+                for child in node.children.values():
                     child.receive(result)
 
             elif node.protocol == Protocol.SYNC_CALL:
                 # Synchronous: process each child immediately with parent's result
-                for child in node._children.values():
+                for child in node.children.values():
                     self._process_node_with_protocol(child, result)
                     # Child errors are recorded but don't stop siblings
 
             else:  # PUB_SUB
                 # Broadcast: queue result for all subscriber children
-                for child in node._children.values():
+                for child in node.children.values():
                     child.receive(result)
 
-        return node._last_process_error
+        return node.last_error
 
     def step(self, input_data: Optional[BrainData] = None) -> StepResult:
         """Execute one simulation step.
@@ -354,8 +381,8 @@ class FrequencyScheduler:
                 if node.node_id == 0 and external_input is not None:
                     err = self._process_node_with_protocol(node, external_input)
                 else:
-                    if node._input_queue:
-                        queued = node._input_queue.popleft()
+                    if node.has_queued_input:
+                        queued = node.pop_input()
                         err = self._process_node_with_protocol(node, queued)
                     else:
                         err = self._process_node_with_protocol(node, self._get_default_input(node))
@@ -375,8 +402,8 @@ class FrequencyScheduler:
             for node in self._band_nodes[FrequencyBand.MEDIUM]:
                 try:
                     t0 = time.perf_counter()
-                    if node._input_queue:
-                        queued = node._input_queue.popleft()
+                    if node.has_queued_input:
+                        queued = node.pop_input()
                         err = self._process_node_with_protocol(node, queued)
                     else:
                         err = self._process_node_with_protocol(node, self._get_default_input(node))
@@ -396,8 +423,8 @@ class FrequencyScheduler:
             for node in self._band_nodes[FrequencyBand.SLOW]:
                 try:
                     t0 = time.perf_counter()
-                    if node._input_queue:
-                        queued = node._input_queue.popleft()
+                    if node.has_queued_input:
+                        queued = node.pop_input()
                         err = self._process_node_with_protocol(node, queued)
                     else:
                         err = self._process_node_with_protocol(node, self._get_default_input(node))
@@ -467,16 +494,6 @@ class FrequencyScheduler:
             },
             "total_nodes": self._tree.total_nodes,
         }
-
-    @property
-    def step_count(self) -> int:
-        """Current step number (public read-only access)."""
-        return self._step
-
-    @property
-    def sim_time(self) -> float:
-        """Current simulation time in seconds (public read-only access)."""
-        return self._sim_time
 
     @property
     def medium_ratio(self) -> int:

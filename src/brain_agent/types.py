@@ -11,6 +11,8 @@ import base64
 import json
 import numpy as np
 
+from .exceptions import SerializationError
+
 
 class BrainDataType:
     """Base class for all brain data types.
@@ -54,7 +56,7 @@ class Tensor(BrainDataType):
 
         # Validate shape matches expected
         if self.data.shape != expected_shape:
-            raise ValueError(
+            raise SerializationError(
                 f"Tensor shape mismatch: expected {expected_shape}, actual {self.data.shape}"
             )
 
@@ -98,14 +100,14 @@ class StateVector(BrainDataType):
 
         # Validate that data is 1D
         if self.data.ndim != 1:
-            raise ValueError(
+            raise SerializationError(
                 f"StateVector must be 1-dimensional, actual dimension is {self.data.ndim}D, "
                 f"shape is {self.data.shape}"
             )
 
         # Validate dimension matches expected
         if self.data.shape[0] != expected_dim:
-            raise ValueError(
+            raise SerializationError(
                 f"StateVector dimension mismatch: expected {expected_dim}, actual {self.data.shape[0]}"
             )
 
@@ -169,33 +171,33 @@ class SpikeTrain(BrainDataType):
 
         # Validate 1D arrays
         if self.timestamps.ndim != 1:
-            raise ValueError(
+            raise SerializationError(
                 f"Timestamps must be 1-dimensional, actual dimension is {self.timestamps.ndim}D, "
                 f"shape is {self.timestamps.shape}"
             )
         if self.neuron_ids.ndim != 1:
-            raise ValueError(
+            raise SerializationError(
                 f"Neuron IDs must be 1-dimensional, actual dimension is {self.neuron_ids.ndim}D, "
                 f"shape is {self.neuron_ids.shape}"
             )
 
         # Validate same length
         if len(self.timestamps) != len(self.neuron_ids):
-            raise ValueError(
+            raise SerializationError(
                 f"Timestamps and neuron IDs length mismatch: "
                 f"timestamps length={len(self.timestamps)}, neuron IDs length={len(self.neuron_ids)}"
             )
 
         # Validate duration is non-negative
         if self.duration < 0:
-            raise ValueError(
+            raise SerializationError(
                 f"Duration cannot be negative, actual value: {self.duration}"
             )
 
         # Validate timestamps are within duration
         if len(self.timestamps) > 0:
             if np.any(self.timestamps < 0) or np.any(self.timestamps > self.duration):
-                raise ValueError(
+                raise SerializationError(
                     f"Timestamps must be within [0, {self.duration}], "
                     f"actual range: [{self.timestamps.min()}, {self.timestamps.max()}]"
                 )

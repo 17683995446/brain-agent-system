@@ -18,6 +18,7 @@ from brain_agent.tree import (
 )
 from brain_agent.nodes import NODE_CLASS_MAP
 from brain_agent.generated import GENERATED_NODE_MAP
+from brain_agent.exceptions import BrainAgentError
 from brain_agent.registry import (
     ALL_NODE_CLASSES,
     get_node_class,
@@ -270,10 +271,10 @@ class TestCreateNode:
         assert callable(node.process)
 
     def test_create_node_unregistered_raises(self):
-        """create_node should raise ValueError for unregistered node ID."""
+        """create_node should raise BrainAgentError for unregistered node ID."""
         # Use a very high ID that won't be in the registry
         config = self._make_config(99999)
-        with pytest.raises(ValueError, match="No node class registered"):
+        with pytest.raises(BrainAgentError, match="No node class registered"):
             create_node(config)
 
 

@@ -7,6 +7,7 @@ from typing import Dict, Type, Optional
 from .node import BrainNode, NodeConfig
 from .nodes import NODE_CLASS_MAP  # L00-L03 (15 nodes)
 from .generated import GENERATED_NODE_MAP  # L04-L10 (2032 nodes)
+from .exceptions import BrainAgentError
 
 # Unified registry: node_id -> class
 ALL_NODE_CLASSES: Dict[int, Type[BrainNode]] = {}
@@ -23,7 +24,7 @@ def create_node(config: NodeConfig) -> BrainNode:
     """Create a node instance from its config, using the registry."""
     cls = get_node_class(config.node_id)
     if cls is None:
-        raise ValueError(
+        raise BrainAgentError(
             f"No node class registered for node_id={config.node_id}. "
             f"Register custom nodes via register_node(node_id, cls) or add to NODE_CLASS_MAP."
         )

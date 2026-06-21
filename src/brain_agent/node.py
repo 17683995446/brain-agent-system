@@ -15,11 +15,10 @@ import logging
 import ast
 
 from .types import BrainData, Tensor, StateVector, Signal, Message
+from .exceptions import NodeValidationError
+from .constants import DEFAULT_MAX_QUEUE_SIZE
 
 logger = logging.getLogger(__name__)
-
-# Maximum input queue depth. When full, oldest items are dropped.
-DEFAULT_MAX_QUEUE_SIZE = 1000
 
 
 class RegionType(Enum):
@@ -212,7 +211,7 @@ class BrainNode(ABC):
         if expected_type != BrainData and not isinstance(data, expected_type):
             actual_type = type(data).__name__
             expected_name = getattr(expected_type, '__name__', str(expected_type))
-            raise ValueError(
+            raise NodeValidationError(
                 f"Node {self.node_id} ({self.short_name}): "
                 f"Input data type mismatch: expected {expected_name}, actual {actual_type}"
             )
@@ -220,7 +219,7 @@ class BrainNode(ABC):
         # Shape validation for Tensor
         if isinstance(data, Tensor) and in_port.shape is not None:
             if data.shape != in_port.shape:
-                raise ValueError(
+                raise NodeValidationError(
                     f"Node {self.node_id} ({self.short_name}): "
                     f"Input Tensor shape mismatch: expected {in_port.shape}, actual {data.shape}"
                 )
@@ -243,7 +242,7 @@ class BrainNode(ABC):
         if expected_type != BrainData and not isinstance(data, expected_type):
             actual_type = type(data).__name__
             expected_name = getattr(expected_type, '__name__', str(expected_type))
-            raise ValueError(
+            raise NodeValidationError(
                 f"Node {self.node_id} ({self.short_name}): "
                 f"Output data type mismatch: expected {expected_name}, actual {actual_type}"
             )
@@ -251,7 +250,7 @@ class BrainNode(ABC):
         # Shape validation for Tensor
         if isinstance(data, Tensor) and out_port.shape is not None:
             if data.shape != out_port.shape:
-                raise ValueError(
+                raise NodeValidationError(
                     f"Node {self.node_id} ({self.short_name}): "
                     f"Output Tensor shape mismatch: expected {out_port.shape}, actual {data.shape}"
                 )
@@ -306,6 +305,36 @@ class BrainNode(ABC):
     def last_error(self) -> Optional[str]:
         """Last process error message, or None if last process succeeded."""
         return self._last_process_error
+
+    @property
+    def state(self) -> Dict[str, Any]:
+        """Internal state dictionary (read-write)."""
+        return self._state
+
+    @property
+    def input_ports(self) -> Dict[str, PortSpec]:
+        """Input port specifications."""
+        return self._input_ports
+
+    @property
+    def output_ports(self) -> Dict[str, PortSpec]:
+        """Output port specifications."""
+        return self._output_ports
+
+    @property
+    def has_queued_input(self) -> bool:
+        """Whether this node has queued input data waiting."""
+        return len(self._input_queue) > 0
+
+    def pop_input(self) -> Optional[BrainData]:
+        """Pop and return the next queued input, or None if queue is empty."""
+        if self._input_queue:
+            return self._input_queue.popleft()
+        return None
+
+    def record_latency(self, elapsed_seconds: float) -> None:
+        """Record processing latency from an external caller (e.g. scheduler)."""
+        self._record_scheduler_latency(elapsed_seconds)
 
     def connect_parent(self, parent: "BrainNode") -> None:
         """Connect this node to a parent node."""
